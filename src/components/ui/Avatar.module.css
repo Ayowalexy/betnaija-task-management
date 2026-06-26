@@ -1,0 +1,69 @@
+/* Avatar.module.css */
+
+.avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-semibold);
+  color: #ffffff;
+  flex-shrink: 0;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* ── Sizes ── */
+.xs {
+  width: 24px;
+  height: 24px;
+  font-size: 9px;
+}
+
+.sm {
+  width: 32px;
+  height: 32px;
+  font-size: var(--font-size-xs);
+}
+
+.md {
+  width: 40px;
+  height: 40px;
+  font-size: var(--font-size-sm);
+}
+
+.lg {
+  width: 48px;
+  height: 48px;
+  font-size: var(--font-size-base);
+}
+
+/* ── Online indicator ── */
+.onlineDot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background-color: var(--color-success);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-bg-elevated);
+}
+
+.xs .onlineDot {
+  width: 7px;
+  height: 7px;
+  border-width: 1.5px;
+}
+
+.sm .onlineDot {
+  width: 8px;
+  height: 8px;
+}
+
+.lg .onlineDot {
+  width: 12px;
+  height: 12px;
+}

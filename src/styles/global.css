@@ -1,0 +1,150 @@
+/* =========================================================
+   Global Styles — FlowDesk
+   ========================================================= */
+
+@import './tokens.css';
+@import './reset.css';
+@import './typography.css';
+
+/* -------------------------------------------------------
+   Body base styles
+------------------------------------------------------- */
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  transition: background-color var(--transition-slow), color var(--transition-slow);
+}
+
+/* -------------------------------------------------------
+   Scrollbar styling (webkit)
+------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+/* -------------------------------------------------------
+   Focus ring styles
+------------------------------------------------------- */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* -------------------------------------------------------
+   Selection
+------------------------------------------------------- */
+::selection {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+}
+
+/* -------------------------------------------------------
+   Utility: visually hidden (for accessibility)
+------------------------------------------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* -------------------------------------------------------
+   Utility: truncate text
+------------------------------------------------------- */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------
+   Utility: flex helpers
+------------------------------------------------------- */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-2 {
+  gap: var(--space-2);
+}
+
+.gap-4 {
+  gap: var(--space-4);
+}
+
+/* -------------------------------------------------------
+   Smooth theme transitions
+------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Exclude layout-affecting properties from auto-transition */
+*,
+*::before,
+*::after {
+  transition-property: none;
+}
+
+/* Re-apply only for theme-aware elements explicitly */
+body,
+.card,
+.sidebar,
+.modal,
+.dropdown,
+.toast,
+input,
+textarea,
+select,
+button {
+  transition: background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base),
+    box-shadow var(--transition-base);
+}

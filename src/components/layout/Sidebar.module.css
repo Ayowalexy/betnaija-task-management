@@ -1,0 +1,399 @@
+/* Sidebar.module.css */
+
+/* ── Root ── */
+.sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-sidebar-bg);
+  border-right: 1px solid var(--color-sidebar-border);
+  width: var(--sidebar-width);
+  transition: width var(--transition-sidebar);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+/* ── Mobile overlay ── */
+.sidebar.mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: var(--z-overlay);
+  transform: translateX(-100%);
+  transition: transform var(--transition-sidebar);
+  width: var(--sidebar-width) !important;
+}
+
+.sidebar.mobileOpen {
+  transform: translateX(0);
+}
+
+.mobileBackdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgb(0 0 0 / 0.4);
+  z-index: calc(var(--z-overlay) - 1);
+}
+
+.mobileBackdropVisible {
+  display: block;
+}
+
+/* ── Logo ── */
+.logoArea {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--color-sidebar-border);
+  flex-shrink: 0;
+  min-height: 64px;
+  overflow: hidden;
+}
+
+.logoIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-primary);
+  color: var(--color-primary-text);
+  flex-shrink: 0;
+}
+
+.logoText {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  letter-spacing: var(--letter-spacing-tight);
+  opacity: 1;
+  transition: opacity var(--transition-sidebar);
+}
+
+.collapsed .logoText {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+}
+
+/* ── Toggle button ── */
+.toggleBtn {
+  position: absolute;
+  top: 16px;
+  right: -12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-sidebar-border);
+  background-color: var(--color-sidebar-bg);
+  color: var(--color-sidebar-icon);
+  cursor: pointer;
+  z-index: var(--z-raised);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toggleBtn:hover {
+  background-color: var(--color-sidebar-item-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+.toggleBtn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ── Nav ── */
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-3) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+
+/* ── Nav item ── */
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-sidebar-text);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family-sans);
+  white-space: nowrap;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  min-height: 40px;
+  overflow: hidden;
+}
+
+.navItem:hover {
+  background-color: var(--color-sidebar-item-hover);
+  color: var(--color-text-primary);
+}
+
+.navItem.active {
+  background-color: var(--color-sidebar-item-active);
+  color: var(--color-sidebar-item-active-text);
+}
+
+.navIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--color-sidebar-icon);
+  transition: color var(--transition-fast);
+}
+
+.navItem:hover .navIcon {
+  color: var(--color-text-primary);
+}
+
+.navItem.active .navIcon {
+  color: var(--color-sidebar-icon-active);
+}
+
+.navLabel {
+  flex: 1;
+  opacity: 1;
+  transition: opacity var(--transition-sidebar);
+}
+
+.collapsed .navLabel {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  overflow: hidden;
+}
+
+/* ── Badge on nav items ── */
+.navBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background-color: var(--color-error);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  flex-shrink: 0;
+  transition: opacity var(--transition-sidebar);
+}
+
+.collapsed .navBadge {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Collapsed badge repositioned on icon */
+.iconBadge {
+  position: absolute;
+  top: 6px;
+  left: 26px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-error);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  line-height: 14px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.collapsed .iconBadge {
+  display: flex;
+}
+
+.collapsed .navBadge {
+  display: none;
+}
+
+/* ── Divider ── */
+.divider {
+  height: 1px;
+  background-color: var(--color-sidebar-border);
+  margin: var(--space-2) var(--space-1);
+  flex-shrink: 0;
+}
+
+/* ── Tooltip (collapsed state) ── */
+.tooltip {
+  position: absolute;
+  left: calc(var(--sidebar-collapsed-width) + var(--space-2));
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--color-bg-inverse);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: var(--z-tooltip);
+  box-shadow: var(--shadow-md);
+}
+
+.sidebar.collapsed .navItem:hover .tooltip {
+  opacity: 1;
+}
+
+/* ── Footer / User area ── */
+.footer {
+  border-top: 1px solid var(--color-sidebar-border);
+  padding: var(--space-3) var(--space-2);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.userInfo {
+  flex: 1;
+  min-width: 0;
+  opacity: 1;
+  transition: opacity var(--transition-sidebar);
+  overflow: hidden;
+}
+
+.collapsed .userInfo {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+}
+
+.userName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.userRole {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-top: 1px;
+}
+
+/* ── Avatar ── */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: #ffffff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  user-select: none;
+}
+
+/* ── Logout button ── */
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  min-height: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.logoutBtn:hover {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.logoutBtn .navIcon {
+  flex-shrink: 0;
+}
+
+.logoutLabel {
+  opacity: 1;
+  transition: opacity var(--transition-sidebar);
+}
+
+.collapsed .logoutLabel {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  overflow: hidden;
+}

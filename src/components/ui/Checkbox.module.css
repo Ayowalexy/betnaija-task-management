@@ -1,0 +1,87 @@
+/* Checkbox.module.css */
+
+.wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.wrapper:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Hide native checkbox */
+.nativeInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Custom box */
+.box {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+  margin-top: 1px;
+}
+
+.wrapper:hover .box {
+  border-color: var(--color-border-focus);
+}
+
+.boxChecked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.boxIndeterminate {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Focus ring */
+.nativeInput:focus-visible + .box {
+  box-shadow: var(--shadow-focus);
+  border-color: var(--color-border-focus);
+}
+
+.checkIcon {
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+}
+
+.labelGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-snug);
+  user-select: none;
+}
+
+.description {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-normal);
+  user-select: none;
+}

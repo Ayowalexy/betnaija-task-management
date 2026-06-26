@@ -1,0 +1,106 @@
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border: none;
+  white-space: nowrap;
+  letter-spacing: var(--letter-spacing-wide);
+  transition: opacity var(--transition-fast);
+}
+
+.badge:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.chevron {
+  margin-left: var(--space-1);
+  opacity: 0.7;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--z-dropdown);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  min-width: 160px;
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background var(--transition-fast);
+}
+
+.option:hover {
+  background: var(--color-bg-subtle);
+}
+
+/* Status color mappings */
+.status_open {
+  background: var(--color-status-open-bg);
+  color: var(--color-status-open-text);
+}
+.status_inprogress {
+  background: var(--color-status-in-progress-bg);
+  color: var(--color-status-in-progress-text);
+}
+.status_pending {
+  background: var(--color-status-pending-bg);
+  color: var(--color-status-pending-text);
+}
+.status_transferred {
+  background: var(--color-status-transferred-bg);
+  color: var(--color-status-transferred-text);
+}
+.status_escalated {
+  background: var(--color-status-escalated-bg);
+  color: var(--color-status-escalated-text);
+}
+.status_resolved {
+  background: var(--color-status-resolved-bg);
+  color: var(--color-status-resolved-text);
+}
+.status_defaulted {
+  background: var(--color-status-defaulted-bg);
+  color: var(--color-status-defaulted-text);
+}
+.status_closed {
+  background: var(--color-status-closed-bg);
+  color: var(--color-status-closed-text);
+}

@@ -1,0 +1,32 @@
+/* AppShell.module.css */
+
+.shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--color-bg-base);
+}
+
+/* ── Main area (right of sidebar) ── */
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Scrollable content ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: var(--color-bg-base);
+}
+
+/* ── Mobile: hide sidebar space, sidebar becomes overlay ── */
+@media (max-width: 768px) {
+  .shell {
+    /* sidebar is fixed overlay on mobile, so shell doesn't reserve space */
+  }
+}

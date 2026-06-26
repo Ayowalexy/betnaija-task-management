@@ -1,0 +1,79 @@
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.item:hover {
+  background: var(--color-bg-subtle);
+}
+
+.item.unread {
+  background: var(--color-primary-subtle);
+}
+
+.item.unread:hover {
+  background: var(--color-primary-100);
+}
+
+.iconWrap {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iconWrap.ticket_assigned { background: var(--color-info-bg); color: var(--color-info); }
+.iconWrap.sla_warning { background: var(--color-warning-bg); color: var(--color-warning); }
+.iconWrap.ticket_resolved { background: var(--color-success-bg); color: var(--color-success); }
+.iconWrap.new_comment { background: var(--color-primary-subtle); color: var(--color-primary); }
+.iconWrap.payment_initiated { background: var(--color-success-bg); color: var(--color-success); }
+.iconWrap.ticket_escalated { background: var(--color-error-bg); color: var(--color-error); }
+.iconWrap.ticket_transferred { background: var(--color-bg-muted); color: var(--color-text-secondary); }
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0 0 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.time {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.unreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
