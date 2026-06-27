@@ -1,4 +1,4 @@
-import React from 'react';
+import { useRef, useState, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,12 +9,11 @@ import { Select } from '../../../components/ui/index';
 import { Button } from '../../../components/ui/index';
 import { Modal } from '../../../components/ui/index';
 import { PageWrapper } from '../../../components/layout/PageWrapper';
-import { useTicketStore } from '../../../store/ticketStore';
-import { useAuthStore } from '../../../store/authStore';
 import { useToast } from '../../../hooks/useToast';
 import { useModal } from '../../../hooks/useModal';
-import { DEPARTMENTS, getDeptById } from '../../../mocks/departments';
-import type { Ticket } from '../../../types/index';
+import { departmentsApi } from '../../../api/departments';
+import { ticketsApi } from '../../../api/tickets';
+import type { Department } from '../../../types/index';
 import { createTicketSchema } from '../schemas';
 import type { CreateTicketFormData } from '../schemas';
 import styles from './CreateTicketPage.module.css';
@@ -25,8 +24,6 @@ const PRIORITY_OPTIONS = [
   { value: 'high', label: '● High' },
   { value: 'critical', label: '● Critical' },
 ];
-
-const DEPT_OPTIONS = DEPARTMENTS.map((d) => ({ value: d.id, label: d.name }));
 
 function formatMs(ms: number): string {
   if (ms < 60 * 60 * 1000) return `${Math.round(ms / 60000)}m`;
@@ -71,18 +68,19 @@ function FileList({ files, onRemove }: FileListProps) {
 }
 
 interface SLAInfoBannerProps {
-  deptId: string;
+  dept: Department | null;
 }
 
-function SLAInfoBanner({ deptId }: SLAInfoBannerProps) {
-  const dept = getDeptById(deptId);
+function SLAInfoBanner({ dept }: SLAInfoBannerProps) {
   if (!dept) return null;
+  const slaResponseMs = (dept as Department & { slaResponseMs?: number }).slaResponseMs ?? 0;
+  const slaResolutionMs = (dept as Department & { slaResolutionMs?: number }).slaResolutionMs ?? 0;
   return (
     <div className={styles.slaBanner}>
-      <span className={styles.slaBannerTitle}>📋 SLA for {dept.name}</span>
+      <span className={styles.slaBannerTitle}>SLA for {dept.name}</span>
       <div className={styles.slaPills}>
-        <span className={styles.slaPillBlue}>Response: {formatMs(dept.sla.responseTimeMs)}</span>
-        <span className={styles.slaPillOrange}>Resolution: {formatMs(dept.sla.resolutionTimeMs)}</span>
+        {slaResponseMs > 0 && <span className={styles.slaPillBlue}>Response: {formatMs(slaResponseMs)}</span>}
+        {slaResolutionMs > 0 && <span className={styles.slaPillOrange}>Resolution: {formatMs(slaResolutionMs)}</span>}
       </div>
     </div>
   );
@@ -96,8 +94,8 @@ interface TicketPreviewProps {
   isSubmitting: boolean;
 }
 
-function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting }: TicketPreviewProps) {
-  const dept = data.departmentId ? getDeptById(data.departmentId) : null;
+function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting, deptName }: TicketPreviewProps & { deptName?: string }) {
+  const dept = deptName ? { name: deptName } : null;
   const priorityColors: Record<string, string> = {
     low: 'var(--color-priority-low)',
     medium: 'var(--color-priority-medium)',
@@ -166,11 +164,14 @@ function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting }: Ticket
 
 export function CreateTicketPage() {
   const navigate = useNavigate();
-  const addTicket = useTicketStore((s) => s.addTicket);
-  const currentUser = useAuthStore((s) => s.currentUser);
   const { toast } = useToast();
   const previewModal = useModal();
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  useEffect(() => {
+    departmentsApi.list({ limit: 100 }).then((res) => setDepartments(res.data)).catch(() => {});
+  }, []);
 
   const {
     register,
@@ -187,13 +188,13 @@ export function CreateTicketPage() {
   const selectedDeptId = watchedValues.departmentId ?? '';
   const attachments = watchedValues.attachments ?? [];
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+  function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     const newFiles = Array.from(e.dataTransfer.files);
     setValue('attachments', [...attachments, ...newFiles]);
   }
 
-  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileInput(e: ChangeEvent<HTMLInputElement>) {
     const newFiles = Array.from(e.target.files ?? []);
     setValue('attachments', [...attachments, ...newFiles]);
   }
@@ -202,39 +203,21 @@ export function CreateTicketPage() {
     setValue('attachments', attachments.filter((_, i) => i !== index));
   }
 
-  function onSubmit(data: CreateTicketFormData) {
-    if (!currentUser) return;
-    const id = `t${Date.now().toString().slice(-6)}`;
-    const now = new Date().toISOString();
-    const newTicket: Ticket = {
-      id,
-      title: data.title,
-      description: data.description,
-      status: 'open',
-      priority: data.priority,
-      departmentId: data.departmentId,
-      assigneeId: null,
-      requestorId: currentUser.id,
-      createdAt: now,
-      updatedAt: now,
-      resolvedAt: null,
-      closedAt: null,
-      comments: [],
-      attachments: (data.attachments ?? []).map((f, i) => ({
-        id: `att-${id}-${i}`,
-        name: f.name,
-        type: f.type,
-        sizeBytes: f.size,
-        url: URL.createObjectURL(f),
-      })),
-      linkedTicketIds: [],
-      transferHistory: [],
-      tags: [],
-    };
-    addTicket(newTicket);
-    toast({ type: 'success', message: 'Ticket created successfully.' });
-    previewModal.close();
-    navigate(`/tickets/${id}`);
+  async function onSubmit(data: CreateTicketFormData) {
+    try {
+      const created = await ticketsApi.create({
+        title: data.title,
+        description: data.description,
+        priority: data.priority,
+        departmentId: data.departmentId,
+        files: (data.attachments ?? []) as File[],
+      });
+      toast({ type: 'success', message: 'Ticket created successfully.' });
+      previewModal.close();
+      navigate(`/tickets/${created.id}`);
+    } catch {
+      toast({ type: 'error', message: 'Failed to create ticket. Please try again.' });
+    }
   }
 
   return (
@@ -269,7 +252,7 @@ export function CreateTicketPage() {
                 render={({ field }) => (
                   <Select
                     label="Department *"
-                    options={DEPT_OPTIONS}
+                    options={departments.map((d) => ({ value: d.id, label: d.name }))}
                     placeholder="Select department…"
                     error={errors.departmentId?.message}
                     {...field}
@@ -278,7 +261,9 @@ export function CreateTicketPage() {
               />
             </div>
 
-            {selectedDeptId && <SLAInfoBanner deptId={selectedDeptId} />}
+            {selectedDeptId && (
+              <SLAInfoBanner dept={departments.find((d) => d.id === selectedDeptId) ?? null} />
+            )}
 
             <Textarea
               label="Description *"
@@ -337,6 +322,7 @@ export function CreateTicketPage() {
         onSubmit={handleSubmit(onSubmit)}
         data={watchedValues}
         isSubmitting={isSubmitting}
+        deptName={departments.find((d) => d.id === selectedDeptId)?.name}
       />
     </PageWrapper>
   );

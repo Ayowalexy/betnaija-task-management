@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -20,8 +20,7 @@ import type { ReactNode, ReactElement } from 'react';
 import type { UserRole } from '../../types/index';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
-import { NOTIFICATIONS } from '../../mocks/notifications';
-import { CONVERSATIONS } from '../../mocks/chat';
+import { useNotifications } from '../../hooks/useNotifications';
 import styles from './Sidebar.module.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -65,29 +64,9 @@ export function Sidebar(): ReactElement {
   const logout = useAuthStore((s) => s.logout);
   const { sidebarCollapsed, sidebarMobileOpen, toggleSidebar, setSidebarMobileOpen } = useUIStore();
   const navigate = useNavigate();
-
-  // Unread notification count for current user
-  const unreadNotifs = useMemo(() => {
-    if (!currentUser) return 0;
-    return NOTIFICATIONS.filter(
-      (n) => n.userId === currentUser.id && !n.isRead,
-    ).length;
-  }, [currentUser]);
-
-  // Unread chat count: messages in conversations where current user is a participant
-  // and current user hasn't read the last message (not sent by them)
-  const unreadChats = useMemo(() => {
-    if (!currentUser) return 0;
-    return CONVERSATIONS.filter((conv) => {
-      if (!conv.participantIds.includes(currentUser.id)) return false;
-      const msgs = conv.messages;
-      if (msgs.length === 0) return false;
-      const unread = msgs.filter(
-        (m) => m.senderId !== currentUser.id && !m.readBy.includes(currentUser.id),
-      );
-      return unread.length > 0;
-    }).length;
-  }, [currentUser]);
+  const { unreadCount: unreadNotifs } = useNotifications();
+  // Chat unread count — placeholder until Stream.io integration is complete
+  const [unreadChats] = useState(0);
 
   const navItems = useMemo((): NavStructure => {
     const role = currentUser?.role;

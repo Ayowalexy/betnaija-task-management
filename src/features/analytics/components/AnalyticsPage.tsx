@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -11,25 +11,10 @@ import { Button } from '../../../components/ui/index.js';
 import { Input } from '../../../components/ui/index.js';
 import { DataTable } from '../../../components/shared/DataTable.js';
 import type { Column } from '../../../components/shared/DataTable.js';
-import { ANALYTICS } from '../../../mocks/analytics.js';
-import type { SLABreach } from '../../../types/index.js';
+import { analyticsApi } from '../../../api/analytics.js';
+import type { AnalyticsData, SLABreach } from '../../../types/index.js';
 import { StatCard } from './StatCard.js';
 import styles from './AnalyticsPage.module.css';
-
-const totalTickets = ANALYTICS.monthlyVolume.reduce((s, m) => s + m.count, 0);
-const resolvedCount = ANALYTICS.ticketsByStatus.find((t) => t.label === 'Resolved')?.value ?? 0;
-const avgCompliance =
-  Math.round(
-    (ANALYTICS.slaCompliance.reduce((s, c) => s + c.complianceRate, 0) /
-      ANALYTICS.slaCompliance.length) *
-      10
-  ) / 10;
-const avgResolution =
-  Math.round(
-    (ANALYTICS.avgResolutionTime.reduce((s, d) => s + d.avgHours, 0) /
-      ANALYTICS.avgResolutionTime.length) *
-      10
-  ) / 10;
 
 const breachColumns: Column<SLABreach>[] = [
   { key: 'title', header: 'Ticket', render: (b) => b.title, sortable: true },
@@ -48,10 +33,62 @@ const breachColumns: Column<SLABreach>[] = [
   },
 ];
 
+const EMPTY_ANALYTICS: AnalyticsData = {
+  monthlyVolume: [],
+  slaCompliance: [],
+  ticketsByStatus: [],
+  ticketsByPriority: [],
+  avgResolutionTime: [],
+  topRequestors: [],
+  recentBreaches: [],
+};
+
 export function AnalyticsPage(): ReactElement {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(EMPTY_ANALYTICS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const loadAnalytics = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params: { dateFrom?: string; dateTo?: string } = {};
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
+      const data = await analyticsApi.get(params);
+      setAnalyticsData(data);
+    } catch {
+      setError('Failed to load analytics data');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
+
+  const totalTickets = analyticsData.monthlyVolume.reduce((s, m) => s + m.count, 0);
+  const resolvedCount = analyticsData.ticketsByStatus.find((t) => t.label === 'Resolved')?.value ?? 0;
+  const avgCompliance =
+    analyticsData.slaCompliance.length > 0
+      ? Math.round(
+          (analyticsData.slaCompliance.reduce((s, c) => s + c.complianceRate, 0) /
+            analyticsData.slaCompliance.length) *
+            10
+        ) / 10
+      : 0;
+  const avgResolution =
+    analyticsData.avgResolutionTime.length > 0
+      ? Math.round(
+          (analyticsData.avgResolutionTime.reduce((s, d) => s + d.avgHours, 0) /
+            analyticsData.avgResolutionTime.length) *
+            10
+        ) / 10
+      : 0;
 
   function handleExport(): void {
     const content = contentRef.current;
@@ -109,12 +146,18 @@ export function AnalyticsPage(): ReactElement {
         </div>
       }
     >
+      {error && (
+        <div style={{ padding: '16px', color: 'var(--color-error)', marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
       <div ref={contentRef} className={styles.pageContent}>
         {/* Stat cards */}
         <div className={styles.statsRow}>
           <StatCard
             title="Total Tickets"
-            value={totalTickets}
+            value={loading ? '—' : totalTickets}
             icon={<Ticket size={20} />}
             color="#4F6EF7"
             change={12}
@@ -122,7 +165,7 @@ export function AnalyticsPage(): ReactElement {
           />
           <StatCard
             title="Resolved This Month"
-            value={resolvedCount}
+            value={loading ? '—' : resolvedCount}
             icon={<CheckCircle2 size={20} />}
             color="#10b981"
             change={5}
@@ -130,7 +173,7 @@ export function AnalyticsPage(): ReactElement {
           />
           <StatCard
             title="SLA Compliance %"
-            value={`${avgCompliance}%`}
+            value={loading ? '—' : `${avgCompliance}%`}
             icon={<BarChart2 size={20} />}
             color="#f59e0b"
             change={-2.1}
@@ -138,7 +181,7 @@ export function AnalyticsPage(): ReactElement {
           />
           <StatCard
             title="Avg Resolution Time"
-            value={`${avgResolution}h`}
+            value={loading ? '—' : `${avgResolution}h`}
             icon={<Clock size={20} />}
             color="#8b5cf6"
             change={-8}
@@ -154,7 +197,7 @@ export function AnalyticsPage(): ReactElement {
               <span className={styles.chartSubtitle}>Last 6 months</span>
             </div>
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={ANALYTICS.monthlyVolume} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
+              <LineChart data={analyticsData.monthlyVolume} margin={{ top: 8, right: 16, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
@@ -178,7 +221,7 @@ export function AnalyticsPage(): ReactElement {
             </div>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart
-                data={ANALYTICS.slaCompliance}
+                data={analyticsData.slaCompliance}
                 layout="vertical"
                 margin={{ top: 8, right: 24, left: 60, bottom: 0 }}
               >
@@ -202,7 +245,7 @@ export function AnalyticsPage(): ReactElement {
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
-                  data={ANALYTICS.ticketsByStatus}
+                  data={analyticsData.ticketsByStatus}
                   dataKey="value"
                   nameKey="label"
                   cx="50%"
@@ -211,7 +254,7 @@ export function AnalyticsPage(): ReactElement {
                   outerRadius={90}
                   paddingAngle={2}
                 >
-                  {ANALYTICS.ticketsByStatus.map((entry) => (
+                  {analyticsData.ticketsByStatus.map((entry) => (
                     <Cell key={entry.label} fill={entry.color} />
                   ))}
                 </Pie>
@@ -229,7 +272,7 @@ export function AnalyticsPage(): ReactElement {
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
-                  data={ANALYTICS.ticketsByPriority}
+                  data={analyticsData.ticketsByPriority}
                   dataKey="value"
                   nameKey="label"
                   cx="50%"
@@ -238,7 +281,7 @@ export function AnalyticsPage(): ReactElement {
                   outerRadius={90}
                   paddingAngle={2}
                 >
-                  {ANALYTICS.ticketsByPriority.map((entry) => (
+                  {analyticsData.ticketsByPriority.map((entry) => (
                     <Cell key={entry.label} fill={entry.color} />
                   ))}
                 </Pie>
@@ -257,7 +300,7 @@ export function AnalyticsPage(): ReactElement {
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart
-              data={ANALYTICS.avgResolutionTime}
+              data={analyticsData.avgResolutionTime}
               margin={{ top: 8, right: 16, left: -10, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" />
@@ -284,7 +327,7 @@ export function AnalyticsPage(): ReactElement {
                 </tr>
               </thead>
               <tbody>
-                {ANALYTICS.topRequestors.slice(0, 5).map((r) => (
+                {analyticsData.topRequestors.slice(0, 5).map((r) => (
                   <tr key={r.userId}>
                     <td>{r.name}</td>
                     <td className={styles.ticketCount}>{r.ticketCount}</td>
@@ -301,7 +344,7 @@ export function AnalyticsPage(): ReactElement {
             </div>
             <DataTable<SLABreach>
               columns={breachColumns}
-              data={ANALYTICS.recentBreaches}
+              data={analyticsData.recentBreaches}
               keyExtractor={(b) => b.ticketId}
               pageSize={5}
             />

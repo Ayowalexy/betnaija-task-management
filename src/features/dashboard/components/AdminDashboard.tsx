@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Ticket, AlertCircle, Clock, Activity, Download } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { ANALYTICS } from '../../../mocks/analytics';
-import { TICKETS } from '../../../mocks/tickets';
+import { ticketsApi } from '../../../api/tickets';
+import { analyticsApi } from '../../../api/analytics';
 import { PageWrapper } from '../../../components/layout/PageWrapper';
 import { Button, Modal } from '../../../components/ui/index';
 import { StatCard } from './StatCard';
+import type { Ticket as TicketType, AnalyticsData } from '../../../types/index';
 import styles from './AdminDashboard.module.css';
 
 export function AdminDashboard() {
@@ -17,17 +18,41 @@ export function AdminDashboard() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const total = TICKETS.length;
-  const open = TICKETS.filter((t) => t.status === 'open').length;
-  const inProgress = TICKETS.filter((t) => t.status === 'in_progress').length;
-  const breached = TICKETS.filter((t) => t.status === 'defaulted' || t.status === 'escalated').length;
+  const [tickets, setTickets] = useState<TicketType[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const overdue = TICKETS.filter((t) => t.status === 'defaulted' || t.status === 'escalated').slice(0, 5);
-  const thisWeekStart = new Date('2026-06-22');
-  const dueThisWeek = TICKETS.filter((t) => {
+  useEffect(() => {
+    Promise.all([
+      ticketsApi.list({ page: 1, limit: 10 }),
+      analyticsApi.get(),
+    ]).then(([ticketsRes, analyticsRes]) => {
+      setTickets(ticketsRes.data);
+      setAnalytics(analyticsRes);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const total = tickets.length;
+  const open = tickets.filter((t) => t.status === 'open').length;
+  const inProgress = tickets.filter((t) => t.status === 'in_progress').length;
+  const breached = tickets.filter((t) => t.status === 'defaulted' || t.status === 'escalated').length;
+
+  const overdue = tickets.filter((t) => t.status === 'defaulted' || t.status === 'escalated').slice(0, 5);
+  const thisWeekStart = new Date();
+  thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay());
+  const dueThisWeek = tickets.filter((t) => {
     const created = new Date(t.createdAt);
     return created >= thisWeekStart && t.status !== 'resolved' && t.status !== 'closed';
   });
+
+  if (loading) {
+    return (
+      <PageWrapper title="Admin Dashboard" subtitle="System-wide overview">
+        <p style={{ color: 'var(--color-text-secondary)', padding: '2rem' }}>Loading…</p>
+      </PageWrapper>
+    );
+  }
 
   return (
     <PageWrapper
@@ -50,7 +75,7 @@ export function AdminDashboard() {
         <div className={styles.card}>
           <h3 className={styles.cardTitle}>Monthly Ticket Volume</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={ANALYTICS.monthlyVolume}>
+            <LineChart data={analytics?.monthlyVolume ?? []}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }} />
@@ -63,7 +88,7 @@ export function AdminDashboard() {
         <div className={styles.card}>
           <h3 className={styles.cardTitle}>SLA Compliance by Dept</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={ANALYTICS.slaCompliance} layout="vertical">
+            <BarChart data={analytics?.slaCompliance ?? []} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
               <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
               <YAxis type="category" dataKey="department" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} width={80} />
@@ -77,8 +102,8 @@ export function AdminDashboard() {
           <h3 className={styles.cardTitle}>Tickets by Status</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={ANALYTICS.ticketsByStatus} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={45} outerRadius={70}>
-                {ANALYTICS.ticketsByStatus.map((entry) => (
+              <Pie data={analytics?.ticketsByStatus ?? []} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={45} outerRadius={70}>
+                {(analytics?.ticketsByStatus ?? []).map((entry) => (
                   <Cell key={entry.label} fill={entry.color} />
                 ))}
               </Pie>

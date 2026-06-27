@@ -84,6 +84,9 @@ export interface Comment {
   id: string;
   ticketId: string;
   authorId: string;
+  authorName?: string | null;
+  authorInitials?: string | null;
+  authorColor?: string | null;
   content: string;
   createdAt: string; // ISO
   updatedAt: string | null;
@@ -115,8 +118,19 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   departmentId: string;
+  departmentName?: string | null;
   assigneeId: string | null;
+  assigneeName?: string | null;
+  assigneeInitials?: string | null;
+  assigneeColor?: string | null;
   requestorId: string;
+  requestorName?: string | null;
+  requestorInitials?: string | null;
+  slaStatus?: SLAStatus;
+  slaResolutionDeadline?: string | null;
+  slaResponseDeadline?: string | null;
+  commentCount?: number;
+  attachmentCount?: number;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   resolvedAt: string | null;

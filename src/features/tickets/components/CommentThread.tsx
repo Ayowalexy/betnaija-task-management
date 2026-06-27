@@ -5,10 +5,9 @@ import type { Comment } from '../../../types/index';
 import { Avatar } from '../../../components/ui/index';
 import { Button } from '../../../components/ui/index';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
-import { useTicketStore } from '../../../store/ticketStore';
 import { useAuthStore } from '../../../store/authStore';
-import { getUserById } from '../../../mocks/users';
-import { USERS } from '../../../mocks/users';
+import { useToast } from '../../../hooks/useToast';
+import { ticketsApi } from '../../../api/tickets';
 import styles from './CommentThread.module.css';
 
 const REACTIONS = ['👍', '❤️', '😂', '🎉'];
@@ -31,34 +30,34 @@ function ActivityEntry({ comment }: { comment: Comment }) {
 interface CommentItemProps {
   comment: Comment;
   currentUserId: string | null;
-  onEdit: (id: string, content: string) => void;
-  onDelete: (id: string) => void;
-  onReact: (id: string, emoji: string) => void;
+  onEdit: (id: string, content: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onReact: (id: string, emoji: string) => Promise<void>;
 }
 
 function CommentItem({ comment, currentUserId, onEdit, onDelete, onReact }: CommentItemProps) {
-  const author = getUserById(comment.authorId);
+  const authorName = comment.authorName ?? `User ${comment.authorId.slice(0, 6)}`;
+  const authorInitials = comment.authorInitials ?? authorName.slice(0, 2).toUpperCase();
+  const authorColor = comment.authorColor ?? '#4F6EF7';
   const [showReactions, setShowReactions] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isOwn = currentUserId === comment.authorId;
 
-  function submitEdit() {
+  async function submitEdit() {
     if (editContent.trim()) {
-      onEdit(comment.id, editContent);
+      await onEdit(comment.id, editContent);
       setEditing(false);
     }
   }
 
-  if (!author) return null;
-
   return (
     <div className={styles.comment}>
-      <Avatar initials={author.avatarInitials} color={author.avatarColor} size="sm" name={author.name} />
+      <Avatar initials={authorInitials} color={authorColor} size="sm" name={authorName} />
       <div className={styles.commentBody}>
         <div className={styles.commentHeader}>
-          <span className={styles.commentAuthor}>{author.name}</span>
+          <span className={styles.commentAuthor}>{authorName}</span>
           <span className={styles.commentTime}>
             {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
             {comment.isEdited && <span className={styles.editedTag}> (edited)</span>}
@@ -137,7 +136,7 @@ function CommentItem({ comment, currentUserId, onEdit, onDelete, onReact }: Comm
 // ── CommentInput ──────────────────────────────────────────────────────────────
 
 interface CommentInputProps {
-  onSubmit: (content: string) => void;
+  onSubmit: (content: string) => Promise<void>;
 }
 
 function CommentInput({ onSubmit }: CommentInputProps) {
@@ -175,9 +174,9 @@ function CommentInput({ onSubmit }: CommentInputProps) {
     textareaRef.current?.focus();
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!content.trim()) return;
-    onSubmit(content.trim());
+    await onSubmit(content.trim());
     setContent('');
     setMentionQuery(null);
   }
@@ -186,9 +185,9 @@ function CommentInput({ onSubmit }: CommentInputProps) {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit();
   }
 
-  const mentionUsers = mentionQuery !== null
-    ? USERS.filter((u) => u.name.toLowerCase().includes(mentionQuery)).slice(0, 5)
-    : [];
+  // @mention search not wired to API yet
+  void mentionQuery;
+  const mentionUsers: Array<{ id: string; name: string; avatarInitials: string; avatarColor: string }> = [];
 
   return (
     <div className={styles.inputArea}>
@@ -231,66 +230,48 @@ function CommentInput({ onSubmit }: CommentInputProps) {
 interface CommentThreadProps {
   ticketId: string;
   comments: Comment[];
+  onRefresh: () => void;
 }
 
-export function CommentThread({ ticketId, comments }: CommentThreadProps) {
+export function CommentThread({ ticketId, comments, onRefresh }: CommentThreadProps) {
   const currentUser = useAuthStore((s) => s.currentUser);
-  const addComment = useTicketStore((s) => s.addComment);
-  const updateTicket = useTicketStore((s) => s.updateTicket);
-  const tickets = useTicketStore((s) => s.tickets);
-  const ticket = tickets.find((t) => t.id === ticketId);
+  const { toast } = useToast();
 
-  function handleSubmit(content: string) {
+  async function handleSubmit(content: string) {
     if (!currentUser) return;
-    const comment: Comment = {
-      id: `c-${ticketId}-${Date.now()}`,
-      ticketId,
-      authorId: currentUser.id,
-      content,
-      createdAt: new Date().toISOString(),
-      updatedAt: null,
-      isEdited: false,
-      replyToId: null,
-      reactions: [],
-      attachments: [],
-      isActivityEntry: false,
-      activityText: null,
-    };
-    addComment(ticketId, comment);
+    try {
+      await ticketsApi.addComment(ticketId, { content });
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to post comment.' });
+    }
   }
 
-  function handleEdit(commentId: string, content: string) {
-    if (!ticket) return;
-    const updated = ticket.comments.map((c) =>
-      c.id === commentId ? { ...c, content, isEdited: true, updatedAt: new Date().toISOString() } : c
-    );
-    updateTicket(ticketId, { comments: updated });
+  async function handleEdit(commentId: string, content: string) {
+    try {
+      await ticketsApi.updateComment(ticketId, commentId, content);
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to update comment.' });
+    }
   }
 
-  function handleDelete(commentId: string) {
-    if (!ticket) return;
-    updateTicket(ticketId, { comments: ticket.comments.filter((c) => c.id !== commentId) });
+  async function handleDelete(commentId: string) {
+    try {
+      await ticketsApi.deleteComment(ticketId, commentId);
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to delete comment.' });
+    }
   }
 
-  function handleReact(commentId: string, emoji: string) {
-    if (!ticket || !currentUser) return;
-    const updated = ticket.comments.map((c) => {
-      if (c.id !== commentId) return c;
-      const existing = c.reactions.find((r) => r.emoji === emoji);
-      let reactions;
-      if (existing) {
-        const hasReacted = existing.userIds.includes(currentUser.id);
-        reactions = c.reactions.map((r) =>
-          r.emoji === emoji
-            ? { ...r, userIds: hasReacted ? r.userIds.filter((id) => id !== currentUser.id) : [...r.userIds, currentUser.id] }
-            : r
-        ).filter((r) => r.userIds.length > 0);
-      } else {
-        reactions = [...c.reactions, { emoji, userIds: [currentUser.id] }];
-      }
-      return { ...c, reactions };
-    });
-    updateTicket(ticketId, { comments: updated });
+  async function handleReact(commentId: string, emoji: string) {
+    try {
+      await ticketsApi.toggleReaction(ticketId, commentId, emoji);
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to toggle reaction.' });
+    }
   }
 
   return (

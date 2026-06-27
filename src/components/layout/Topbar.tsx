@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Sun, Moon, Bell, User, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
 import { useTheme } from '../../hooks/useTheme';
-import { NOTIFICATIONS } from '../../mocks/notifications';
+import { useNotifications } from '../../hooks/useNotifications';
 import styles from './Topbar.module.css';
 
 interface TopbarProps {
@@ -18,16 +18,10 @@ export function Topbar({ title }: TopbarProps): ReactElement {
   const setSidebarMobileOpen = useUIStore((s) => s.setSidebarMobileOpen);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const { unreadCount: unreadNotifs } = useNotifications();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const unreadNotifs = useMemo(() => {
-    if (!currentUser) return 0;
-    return NOTIFICATIONS.filter(
-      (n) => n.userId === currentUser.id && !n.isRead,
-    ).length;
-  }, [currentUser]);
 
   // Close dropdown on outside click
   useEffect(() => {

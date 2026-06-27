@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Ticket } from '../../../types/index';
+import type { Ticket, Department } from '../../../types/index';
 import { Button } from '../../../components/ui/index';
 import { Avatar } from '../../../components/ui/index';
 import { Tooltip } from '../../../components/ui/index';
@@ -10,8 +11,7 @@ import type { Column } from '../../../components/shared/DataTable';
 import { SLACountdown } from '../../../components/shared/SLACountdown';
 import { EmptyState } from '../../../components/shared/EmptyState';
 import { PageWrapper } from '../../../components/layout/PageWrapper';
-import { DEPARTMENTS, getDeptById } from '../../../mocks/departments';
-import { USERS, getUserById } from '../../../mocks/users';
+import { departmentsApi } from '../../../api/departments';
 import { useTicketFilters } from '../hooks/useTicketFilters';
 import { TicketFilters } from './TicketFilters';
 import { TicketStatusBadge } from './TicketStatusBadge';
@@ -21,7 +21,9 @@ import styles from './TicketList.module.css';
 interface TicketListProps {
   title: string;
   tickets: Ticket[];
+  total?: number;
   loading?: boolean;
+  error?: string | null;
   showDepartmentFilter?: boolean;
   showAssigneeFilter?: boolean;
 }
@@ -29,12 +31,19 @@ interface TicketListProps {
 export function TicketList({
   title,
   tickets,
+  total,
   loading = false,
+  error = null,
   showDepartmentFilter = true,
-  showAssigneeFilter = true,
 }: TicketListProps) {
   const navigate = useNavigate();
   const { filters, setFilter, resetFilters, filteredTickets } = useTicketFilters(tickets);
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  useEffect(() => {
+    if (!showDepartmentFilter) return;
+    departmentsApi.list({ limit: 100 }).then((res) => setDepartments(res.data)).catch(() => {});
+  }, [showDepartmentFilter]);
 
   const columns: Column<Ticket>[] = [
     {
@@ -42,7 +51,7 @@ export function TicketList({
       header: 'ID',
       width: '80px',
       render: (t) => (
-        <span className={styles.idChip}>#{t.id.toUpperCase()}</span>
+        <span className={styles.idChip}>#{t.id.slice(0, 8).toUpperCase()}</span>
       ),
     },
     {
@@ -77,37 +86,37 @@ export function TicketList({
       key: 'department',
       header: 'Department',
       width: '130px',
-      render: (t) => {
-        const dept = getDeptById(t.departmentId);
-        return <span className={styles.deptCell}>{dept?.name ?? t.departmentId}</span>;
-      },
+      render: (t) => (
+        <span className={styles.deptCell}>{t.departmentName ?? t.departmentId.slice(0, 8)}</span>
+      ),
     },
     {
       key: 'assignee',
       header: 'Assignee',
       width: '160px',
-      render: (t) => {
-        const user = t.assigneeId ? getUserById(t.assigneeId) : null;
-        return user ? (
+      render: (t) =>
+        t.assigneeName ? (
           <div className={styles.assigneeCell}>
-            <Avatar initials={user.avatarInitials} color={user.avatarColor} size="xs" name={user.name} />
-            <span>{user.name}</span>
+            <Avatar
+              initials={t.assigneeInitials ?? t.assigneeName.slice(0, 2).toUpperCase()}
+              color={t.assigneeColor ?? '#4F6EF7'}
+              size="xs"
+              name={t.assigneeName}
+            />
+            <span>{t.assigneeName}</span>
           </div>
         ) : (
           <span className={styles.unassigned}>Unassigned</span>
-        );
-      },
+        ),
     },
     {
       key: 'sla',
       header: 'SLA',
       width: '110px',
-      render: (t) => {
-        const dept = getDeptById(t.departmentId);
-        return dept ? (
-          <SLACountdown createdAt={t.createdAt} slaDurationMs={dept.sla.resolutionTimeMs} variant="pill" />
-        ) : null;
-      },
+      render: (t) =>
+        t.slaResolutionDeadline ? (
+          <SLACountdown deadline={t.slaResolutionDeadline} variant="pill" />
+        ) : null,
     },
     {
       key: 'createdAt',
@@ -119,9 +128,6 @@ export function TicketList({
       ),
     },
   ];
-
-  const depts = showDepartmentFilter ? DEPARTMENTS : [];
-  const users = showAssigneeFilter ? USERS : [];
 
   return (
     <PageWrapper
@@ -137,24 +143,34 @@ export function TicketList({
           filters={filters}
           onFilterChange={setFilter}
           onReset={resetFilters}
-          departments={depts}
-          users={users}
+          departments={departments}
+          users={[]}
         />
-        <DataTable
-          columns={columns}
-          data={filteredTickets}
-          keyExtractor={(t) => t.id}
-          onRowClick={(t) => navigate(`/tickets/${t.id}`)}
-          loading={loading}
-          pageSize={15}
-          stickyHeader
-          emptyState={
-            <EmptyState
-              title="No tickets found"
-              description="Try adjusting your filters or create a new ticket."
+        {error && (
+          <EmptyState title="Error loading tickets" description={error} />
+        )}
+        {!error && (
+          <>
+            {total !== undefined && (
+              <p className={styles.totalCount}>{total} ticket{total !== 1 ? 's' : ''} found</p>
+            )}
+            <DataTable
+              columns={columns}
+              data={filteredTickets}
+              keyExtractor={(t) => t.id}
+              onRowClick={(t) => navigate(`/tickets/${t.id}`)}
+              loading={loading}
+              pageSize={25}
+              stickyHeader
+              emptyState={
+                <EmptyState
+                  title="No tickets found"
+                  description="Try adjusting your filters or create a new ticket."
+                />
+              }
             />
-          }
-        />
+          </>
+        )}
       </div>
     </PageWrapper>
   );

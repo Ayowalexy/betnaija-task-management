@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/index';
-import { useTicketStore } from '../../../store/ticketStore';
-import { useAuthStore } from '../../../store/authStore';
 import { useToast } from '../../../hooks/useToast';
-import { DEPARTMENTS } from '../../../mocks/departments';
+import { departmentsApi } from '../../../api/departments';
+import { ticketsApi } from '../../../api/tickets';
+import type { Department } from '../../../types/index';
 import styles from './TransferModal.module.css';
 
 interface TransferModalProps {
@@ -12,17 +12,22 @@ interface TransferModalProps {
   onClose: () => void;
   ticketId: string;
   currentDeptId: string;
+  onRefresh: () => void;
 }
 
-export function TransferModal({ isOpen, onClose, ticketId, currentDeptId }: TransferModalProps) {
+export function TransferModal({ isOpen, onClose, ticketId, currentDeptId, onRefresh }: TransferModalProps) {
   const [toDeptId, setToDeptId] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
-  const transferTicket = useTicketStore((s) => s.transferTicket);
-  const currentUser = useAuthStore((s) => s.currentUser);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const { toast } = useToast();
 
-  const otherDepts = DEPARTMENTS.filter((d) => d.id !== currentDeptId);
+  useEffect(() => {
+    if (!isOpen) return;
+    departmentsApi.list({ limit: 100 }).then((res) => setDepartments(res.data)).catch(() => {});
+  }, [isOpen]);
+
+  const otherDepts = departments.filter((d) => d.id !== currentDeptId);
 
   function handleClose() {
     setToDeptId('');
@@ -30,14 +35,20 @@ export function TransferModal({ isOpen, onClose, ticketId, currentDeptId }: Tran
     onClose();
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!toDeptId || !currentUser) return;
+    if (!toDeptId) return;
     setLoading(true);
-    transferTicket(ticketId, toDeptId, note, currentUser.id);
-    toast({ type: 'success', message: 'Ticket transferred successfully.' });
-    setLoading(false);
-    handleClose();
+    try {
+      await ticketsApi.transfer(ticketId, toDeptId, note);
+      toast({ type: 'success', message: 'Ticket transferred successfully.' });
+      handleClose();
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to transfer ticket.' });
+    } finally {
+      setLoading(false);
+    }
   }
 
   const footer = (

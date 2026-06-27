@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -7,8 +7,7 @@ import {
   CreditCard, TrendingUp, ArrowRightLeft,
 } from 'lucide-react';
 import type { Notification, NotificationType } from '../../../types/index.js';
-import { NOTIFICATIONS } from '../../../mocks/notifications.js';
-import { useAuthStore } from '../../../store/authStore.js';
+import { notificationsApi } from '../../../api/notifications.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { Button, Tabs } from '../../../components/ui/index.js';
 import { PageWrapper } from '../../../components/layout/PageWrapper.js';
@@ -45,27 +44,56 @@ function matchesTab(n: Notification, tab: FilterTab): boolean {
 }
 
 export function NotificationsPage(): ReactElement {
-  const currentUser = useAuthStore((s) => s.currentUser);
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const [notifications, setNotifications] = useState<Notification[]>(() =>
-    NOTIFICATIONS.filter((n) => n.userId === currentUser?.id)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  );
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
-  function handleMarkAll(): void {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    toast({ type: 'success', message: 'All notifications marked as read' });
+  async function loadNotifications() {
+    try {
+      setLoading(true);
+      const res = await notificationsApi.list({ page: 1, limit: 50 });
+      const sorted = [...res.data].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setNotifications(sorted);
+      setUnreadCount(res.unreadCount ?? sorted.filter((n) => !n.isRead).length);
+    } catch {
+      toast({ type: 'error', message: 'Failed to load notifications' });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleClick(notif: Notification): void {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-    );
+  useEffect(() => {
+    loadNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleMarkAll(): Promise<void> {
+    try {
+      await notificationsApi.markAllRead();
+      await loadNotifications();
+      toast({ type: 'success', message: 'All notifications marked as read' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to mark all as read' });
+    }
+  }
+
+  async function handleClick(notif: Notification): Promise<void> {
+    if (!notif.isRead) {
+      try {
+        await notificationsApi.markRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } catch {
+        // best-effort
+      }
+    }
     if (notif.ticketId) navigate(`/tickets/${notif.ticketId}`);
   }
 
@@ -96,7 +124,11 @@ export function NotificationsPage(): ReactElement {
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className={styles.emptyWrap}>
+          <p className={styles.emptySubtitle}>Loading notifications…</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className={styles.emptyWrap}>
           <div className={styles.emptyIcon}><CheckCircle2 size={40} strokeWidth={1.5} /></div>
           <p className={styles.emptyTitle}>You&apos;re all caught up!</p>

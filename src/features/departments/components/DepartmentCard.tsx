@@ -1,13 +1,15 @@
 import type { ReactElement } from 'react';
 import type { Department } from '../../../types/index.js';
 import { Avatar } from '../../../components/ui/index.js';
-import { getUserById } from '../../../mocks/users.js';
 import { Building2, Users, Ticket } from 'lucide-react';
 import styles from './DepartmentCard.module.css';
 
 interface DepartmentCardProps {
   department: Department;
   onClick: (id: string) => void;
+  headName?: string;
+  headInitials?: string;
+  headColor?: string;
 }
 
 function formatSlaTime(ms: number): string {
@@ -18,8 +20,7 @@ function formatSlaTime(ms: number): string {
   return `${hours}h`;
 }
 
-export function DepartmentCard({ department, onClick }: DepartmentCardProps): ReactElement {
-  const head = getUserById(department.headId);
+export function DepartmentCard({ department, onClick, headName, headInitials, headColor }: DepartmentCardProps): ReactElement {
   const isRoster = department.routing === 'roster_based';
   const routingLabel = isRoster ? 'Roster-Based' : 'All-Notify';
   const iconClass = isRoster ? styles.roster : styles.allNotify;
@@ -66,16 +67,16 @@ export function DepartmentCard({ department, onClick }: DepartmentCardProps): Re
 
       {/* Bottom section */}
       <div className={styles.bottom}>
-        {head && (
+        {headName && (
           <div className={styles.headRow}>
             <span className={styles.headLabel}>Head</span>
             <Avatar
-              initials={head.avatarInitials}
-              color={head.avatarColor}
+              initials={headInitials ?? headName.slice(0, 2).toUpperCase()}
+              color={headColor ?? '#4F6EF7'}
               size="xs"
-              name={head.name}
+              name={headName}
             />
-            <span className={styles.headName}>{head.name}</span>
+            <span className={styles.headName}>{headName}</span>
           </div>
         )}
 

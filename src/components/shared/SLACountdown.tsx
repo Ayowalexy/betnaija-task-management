@@ -3,20 +3,32 @@ import { useSLACountdown } from '../../hooks/useSLACountdown';
 import styles from './SLACountdown.module.css';
 
 interface SLACountdownProps {
-  createdAt: string;
-  slaDurationMs: number;
+  // Option A: pass a deadline ISO string
+  deadline?: string | null;
+  // Option B: pass createdAt + duration
+  createdAt?: string;
+  slaDurationMs?: number;
   variant?: 'pill' | 'bar';
 }
 
 export function SLACountdown({
+  deadline,
   createdAt,
   slaDurationMs,
   variant = 'pill',
-}: SLACountdownProps): ReactElement {
+}: SLACountdownProps): ReactElement | null {
+  // Derive createdAt + duration from deadline if needed
+  const resolvedCreatedAt = deadline ? deadline : (createdAt ?? '');
+  const resolvedDurationMs = deadline
+    ? Math.max(0, new Date(deadline).getTime() - Date.now())
+    : (slaDurationMs ?? 0);
+
   const { timeRemaining, percentElapsed, status } = useSLACountdown(
-    createdAt,
-    slaDurationMs,
+    resolvedCreatedAt,
+    resolvedDurationMs,
   );
+
+  if (!resolvedCreatedAt) return null;
 
   if (variant === 'bar') {
     const fillWidth = `${Math.min(100, percentElapsed).toFixed(1)}%`;

@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RotateCcw, BellRing } from 'lucide-react';
@@ -7,8 +8,9 @@ import { Button } from '../../../components/ui/index.js';
 import { Input } from '../../../components/ui/index.js';
 import { Textarea } from '../../../components/ui/index.js';
 import { Select } from '../../../components/ui/index.js';
-import { useToast } from '../../../hooks/useToast.js';
-import { USERS } from '../../../mocks/users.js';
+import { useUIStore } from '../../../store/uiStore.js';
+import { departmentsApi } from '../../../api/departments.js';
+import { usersApi } from '../../../api/users.js';
 import { createDepartmentSchema } from '../schemas.js';
 import type { CreateDepartmentFormData } from '../schemas.js';
 import styles from './CreateDepartmentModal.module.css';
@@ -16,11 +18,8 @@ import styles from './CreateDepartmentModal.module.css';
 interface CreateDepartmentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
-
-const deptHeadOptions = USERS.filter(
-  (u) => u.role === 'dept_head' || u.role === 'root_admin',
-).map((u) => ({ value: u.id, label: u.name }));
 
 const ROUTING_OPTIONS = [
   {
@@ -37,8 +36,26 @@ const ROUTING_OPTIONS = [
   },
 ];
 
-export function CreateDepartmentModal({ isOpen, onClose }: CreateDepartmentModalProps): ReactElement {
-  const { toast } = useToast();
+export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepartmentModalProps): ReactElement {
+  const addToast = useUIStore((s) => s.addToast);
+  const [deptHeadOptions, setDeptHeadOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void usersApi.list({ role: 'dept_head', limit: 200 }).then((res) => {
+      setDeptHeadOptions(res.data.map((u) => ({ value: u.id, label: u.name })));
+    });
+    // Also fetch root_admins separately and merge
+    void usersApi.list({ role: 'root_admin', limit: 200 }).then((res) => {
+      setDeptHeadOptions((prev) => {
+        const existingIds = new Set(prev.map((o) => o.value));
+        const extra = res.data
+          .filter((u) => !existingIds.has(u.id))
+          .map((u) => ({ value: u.id, label: u.name }));
+        return [...prev, ...extra];
+      });
+    });
+  }, [isOpen]);
 
   const {
     register,
@@ -64,9 +81,24 @@ export function CreateDepartmentModal({ isOpen, onClose }: CreateDepartmentModal
     onClose();
   }
 
-  function onSubmit(_data: CreateDepartmentFormData): void {
-    toast({ type: 'success', message: 'Department created successfully' });
-    handleClose();
+  async function onSubmit(data: CreateDepartmentFormData): Promise<void> {
+    try {
+      await departmentsApi.create({
+        name: data.name,
+        description: data.description,
+        headId: data.headId,
+        routing: data.routing,
+        slaResponseMs: data.responseTimeHours * 60 * 60 * 1000,
+        slaResolutionMs: data.resolutionTimeHours * 60 * 60 * 1000,
+        teamsWebhook: data.teamsWebhook || undefined,
+      });
+      addToast({ type: 'success', message: 'Department created successfully' });
+      reset();
+      onSuccess ? onSuccess() : onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create department';
+      addToast({ type: 'error', message });
+    }
   }
 
   const footer = (

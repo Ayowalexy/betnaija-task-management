@@ -1,10 +1,8 @@
-import React from 'react';
+import type { KeyboardEvent } from 'react';
 import { format } from 'date-fns';
 import type { Ticket } from '../../../types/index';
 import { Avatar } from '../../../components/ui/index';
 import { SLACountdown } from '../../../components/shared/SLACountdown';
-import { getDeptById } from '../../../mocks/departments';
-import { getUserById } from '../../../mocks/users';
 import { TicketStatusBadge } from './TicketStatusBadge';
 import { TicketPriorityBadge } from './TicketPriorityBadge';
 import styles from './TicketCard.module.css';
@@ -15,12 +13,10 @@ interface TicketCardProps {
 }
 
 export function TicketCard({ ticket, onClick }: TicketCardProps) {
-  const dept = getDeptById(ticket.departmentId);
-  const assignee = ticket.assigneeId ? getUserById(ticket.assigneeId) : null;
   const truncatedTitle =
     ticket.title.length > 60 ? `${ticket.title.slice(0, 60)}…` : ticket.title;
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+  function handleKeyDown(e: KeyboardEvent<HTMLElement>) {
     if (e.key === 'Enter' || e.key === ' ') onClick();
   }
 
@@ -34,37 +30,35 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
       aria-label={`Ticket ${ticket.id}: ${ticket.title}`}
     >
       <div className={styles.header}>
-        <span className={styles.idChip}>#{ticket.id.toUpperCase()}</span>
+        <span className={styles.idChip}>#{ticket.id.slice(0, 8).toUpperCase()}</span>
         <TicketStatusBadge status={ticket.status} ticketId={ticket.id} readOnly />
       </div>
       <h3 className={styles.title} title={ticket.title}>{truncatedTitle}</h3>
       <div className={styles.meta}>
         <TicketPriorityBadge priority={ticket.priority} size="sm" />
-        {dept && <span className={styles.dept}>{dept.name}</span>}
+        {ticket.departmentName && (
+          <span className={styles.dept}>{ticket.departmentName}</span>
+        )}
       </div>
       <div className={styles.footer}>
         <div className={styles.footerLeft}>
-          {assignee ? (
+          {ticket.assigneeName ? (
             <div className={styles.assignee}>
               <Avatar
-                initials={assignee.avatarInitials}
-                color={assignee.avatarColor}
+                initials={ticket.assigneeInitials ?? ticket.assigneeName.slice(0, 2).toUpperCase()}
+                color={ticket.assigneeColor ?? '#4F6EF7'}
                 size="xs"
-                name={assignee.name}
+                name={ticket.assigneeName}
               />
-              <span className={styles.assigneeName}>{assignee.name}</span>
+              <span className={styles.assigneeName}>{ticket.assigneeName}</span>
             </div>
           ) : (
             <span className={styles.unassigned}>Unassigned</span>
           )}
         </div>
         <div className={styles.footerRight}>
-          {dept && (
-            <SLACountdown
-              createdAt={ticket.createdAt}
-              slaDurationMs={dept.sla.resolutionTimeMs}
-              variant="pill"
-            />
+          {ticket.slaResolutionDeadline && (
+            <SLACountdown deadline={ticket.slaResolutionDeadline} variant="pill" />
           )}
           <span className={styles.date}>{format(new Date(ticket.createdAt), 'MMM d')}</span>
         </div>

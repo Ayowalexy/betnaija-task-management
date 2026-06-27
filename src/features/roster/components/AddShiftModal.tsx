@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { Shift } from '../../../types/index';
-import { USERS } from '../../../mocks/users';
 import { Modal, Button } from '../../../components/ui/index';
 
 interface AddShiftModalProps {
@@ -11,8 +10,7 @@ interface AddShiftModalProps {
 }
 
 export function AddShiftModal({ isOpen, onClose, onAdd, departmentId }: AddShiftModalProps) {
-  const deptUsers = USERS.filter((u) => u.departmentId === departmentId);
-  const [userId, setUserId] = useState(deptUsers[0]?.id ?? '');
+  const [userId, setUserId] = useState('');
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
@@ -20,7 +18,7 @@ export function AddShiftModal({ isOpen, onClose, onAdd, departmentId }: AddShift
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!userId || !date || !startTime || !endTime) {
+    if (!userId.trim() || !date || !startTime || !endTime) {
       setError('All fields are required.');
       return;
     }
@@ -28,7 +26,8 @@ export function AddShiftModal({ isOpen, onClose, onAdd, departmentId }: AddShift
       setError('End time must be after start time.');
       return;
     }
-    onAdd({ userId, departmentId, date, startTime, endTime });
+    onAdd({ userId: userId.trim(), departmentId, date, startTime, endTime });
+    setUserId('');
     setDate('');
     setStartTime('09:00');
     setEndTime('17:00');
@@ -65,10 +64,16 @@ export function AddShiftModal({ isOpen, onClose, onAdd, departmentId }: AddShift
     }>
       <form id="add-shift-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <label style={labelStyle}>Team Member</label>
-          <select style={inputStyle} value={userId} onChange={(e) => setUserId(e.target.value)}>
-            {deptUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          <label style={labelStyle}>Team Member (User ID)</label>
+          {/* TODO: Replace with a user-picker once a users-by-department API is available */}
+          <input
+            style={inputStyle}
+            type="text"
+            placeholder="Enter user ID"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label style={labelStyle}>Date</label>

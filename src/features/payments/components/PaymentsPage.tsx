@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Payment, PaymentStatus } from '../../../types/index';
-import { PAYMENTS } from '../../../mocks/payments';
-import { getUserById } from '../../../mocks/users';
+import { paymentsApi } from '../../../api/payments';
+import { useToast } from '../../../hooks/useToast';
 import { PageWrapper } from '../../../components/layout/PageWrapper';
 import { DataTable } from '../../../components/shared/DataTable';
 import type { Column } from '../../../components/shared/DataTable';
@@ -26,11 +26,53 @@ function formatAmount(amount: number, currency: string): string {
 }
 
 export function PaymentsPage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [search, setSearch] = useState('');
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
+  async function loadPayments() {
+    try {
+      setLoading(true);
+      const res = await paymentsApi.list({ page: 1, limit: 25 });
+      setPayments(res.data);
+      setTotal(res.total);
+    } catch {
+      toast({ type: 'error', message: 'Failed to load payments' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadPayments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleComplete(id: string): Promise<void> {
+    try {
+      await paymentsApi.complete(id);
+      await loadPayments();
+      toast({ type: 'success', message: 'Payment marked as completed' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to complete payment' });
+    }
+  }
+
+  async function handleFail(id: string): Promise<void> {
+    try {
+      await paymentsApi.fail(id);
+      await loadPayments();
+      toast({ type: 'success', message: 'Payment marked as failed' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to update payment' });
+    }
+  }
 
   const filtered = useMemo(() => {
-    let data = PAYMENTS;
+    let data = payments;
     if (activeTab !== 'all') data = data.filter((p) => p.status === activeTab);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -39,13 +81,13 @@ export function PaymentsPage() {
       );
     }
     return data;
-  }, [activeTab, search]);
+  }, [payments, activeTab, search]);
 
   const tabs: { key: TabFilter; label: string }[] = [
-    { key: 'all', label: `All (${PAYMENTS.length})` },
-    { key: 'pending', label: `Pending (${PAYMENTS.filter((p) => p.status === 'pending').length})` },
-    { key: 'completed', label: `Completed (${PAYMENTS.filter((p) => p.status === 'completed').length})` },
-    { key: 'failed', label: `Failed (${PAYMENTS.filter((p) => p.status === 'failed').length})` },
+    { key: 'all', label: `All (${total})` },
+    { key: 'pending', label: `Pending (${payments.filter((p) => p.status === 'pending').length})` },
+    { key: 'completed', label: `Completed (${payments.filter((p) => p.status === 'completed').length})` },
+    { key: 'failed', label: `Failed (${payments.filter((p) => p.status === 'failed').length})` },
   ];
 
   const columns: Column<Payment>[] = [
@@ -77,10 +119,7 @@ export function PaymentsPage() {
     {
       key: 'initiatedBy',
       header: 'Initiated By',
-      render: (p) => {
-        const user = getUserById(p.initiatedBy);
-        return <span style={{ fontSize: 'var(--font-size-sm)' }}>{user?.name ?? '—'}</span>;
-      },
+      render: (p) => <span style={{ fontSize: 'var(--font-size-sm)' }}>{p.initiatedBy}</span>,
     },
     {
       key: 'initiatedAt',
@@ -99,6 +138,29 @@ export function PaymentsPage() {
         ) : (
           <span style={{ color: 'var(--color-text-disabled)' }}>—</span>
         ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (p) =>
+        p.status === 'pending' ? (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              type="button"
+              style={{ fontSize: 'var(--font-size-xs)', padding: '2px 8px', cursor: 'pointer', borderRadius: 4, border: '1px solid var(--color-border-default)', background: 'var(--color-bg-subtle)' }}
+              onClick={() => handleComplete(p.id)}
+            >
+              Complete
+            </button>
+            <button
+              type="button"
+              style={{ fontSize: 'var(--font-size-xs)', padding: '2px 8px', cursor: 'pointer', borderRadius: 4, border: '1px solid var(--color-error)', color: 'var(--color-error)', background: 'transparent' }}
+              onClick={() => handleFail(p.id)}
+            >
+              Fail
+            </button>
+          </div>
+        ) : null,
     },
   ];
 
@@ -130,13 +192,19 @@ export function PaymentsPage() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filtered}
-        keyExtractor={(p) => p.id}
-        pageSize={8}
-        emptyState={<EmptyState title="No payments found" description="No payments match your current filters." />}
-      />
+      {loading ? (
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+          Loading payments…
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filtered}
+          keyExtractor={(p) => p.id}
+          pageSize={8}
+          emptyState={<EmptyState title="No payments found" description="No payments match your current filters." />}
+        />
+      )}
     </PageWrapper>
   );
 }

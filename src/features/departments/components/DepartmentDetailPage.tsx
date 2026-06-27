@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -16,12 +16,11 @@ import { DataTable } from '../../../components/shared/DataTable.js';
 import type { Column } from '../../../components/shared/DataTable.js';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog.js';
 import { EmptyState } from '../../../components/shared/EmptyState.js';
-import { DEPARTMENTS } from '../../../mocks/departments.js';
-import { USERS } from '../../../mocks/users.js';
-import { useTicketStore } from '../../../store/ticketStore.js';
-import { useToast } from '../../../hooks/useToast.js';
+import { useUIStore } from '../../../store/uiStore.js';
 import { useModal } from '../../../hooks/useModal.js';
-import type { Ticket as TicketType } from '../../../types/index.js';
+import { departmentsApi } from '../../../api/departments.js';
+import { usersApi } from '../../../api/users.js';
+import type { Ticket as TicketType, Department, User } from '../../../types/index.js';
 import { getStatusVariant, getPriorityVariant } from '../../../components/ui/index.js';
 import styles from './DepartmentDetailPage.module.css';
 
@@ -39,8 +38,13 @@ function msToHours(ms: number): number {
 export function DepartmentDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const tickets = useTicketStore((s) => s.tickets);
+  const addToast = useUIStore((s) => s.addToast);
+
+  const [dept, setDept] = useState<Department | null>(null);
+  const [deptTickets] = useState<TicketType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const [activeTab, setActiveTab] = useState('overview');
   const [responseHours, setResponseHours] = useState('');
@@ -49,24 +53,58 @@ export function DepartmentDetailPage(): ReactElement {
   const [description, setDescription] = useState('');
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
   const [selectedAddUserId, setSelectedAddUserId] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const addMemberModal = useModal();
   const deleteModal = useModal();
 
-  const dept = DEPARTMENTS.find((d) => d.id === id);
+  const fetchDept = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await departmentsApi.get(id);
+      setDept(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load department';
+      setError(message);
+      addToast({ type: 'error', message });
+    } finally {
+      setLoading(false);
+    }
+  }, [id, addToast]);
 
-  if (!dept) {
+  useEffect(() => {
+    void fetchDept();
+  }, [fetchDept]);
+
+  useEffect(() => {
+    void usersApi.list({ limit: 500 }).then((res) => setAllUsers(res.data));
+  }, []);
+
+  if (loading) {
     return (
-      <PageWrapper title="Not Found">
-        <EmptyState title="Department not found" description="This department does not exist." />
+      <PageWrapper title="Loading…">
+        <EmptyState title="Loading department…" description="Please wait." />
       </PageWrapper>
     );
   }
 
-  const head = USERS.find((u) => u.id === dept.headId);
-  const members = USERS.filter((u) => dept.memberIds.includes(u.id));
-  const deptTickets = tickets.filter((t) => t.departmentId === dept.id);
-  const addableUsers = USERS.filter(
+  if (error || !dept) {
+    return (
+      <PageWrapper title="Not Found">
+        <EmptyState
+          title="Department not found"
+          description={error ?? 'This department does not exist.'}
+          action={<Button onClick={() => void navigate('/departments')}>Back to Departments</Button>}
+        />
+      </PageWrapper>
+    );
+  }
+
+  const head = allUsers.find((u) => u.id === dept.headId);
+  const members = allUsers.filter((u) => dept.memberIds.includes(u.id));
+  const addableUsers = allUsers.filter(
     (u) => u.id !== dept.headId && !dept.memberIds.includes(u.id),
   );
 
@@ -74,40 +112,97 @@ export function DepartmentDetailPage(): ReactElement {
   const routingLabel = isRoster ? 'Roster-Based' : 'All-Notify';
   const routingVariant = isRoster ? ('purple' as const) : ('info' as const);
 
-  function handleSaveSLA(): void {
-    toast({ type: 'success', message: 'SLA configuration saved' });
+  async function handleSaveSLA(): Promise<void> {
+    if (!dept) return;
+    const respMs = responseHours ? parseFloat(responseHours) * 60 * 60 * 1000 : dept.sla.responseTimeMs;
+    const resMs = resolutionHours ? parseFloat(resolutionHours) * 60 * 60 * 1000 : dept.sla.resolutionTimeMs;
+    setSaving(true);
+    try {
+      const updated = await departmentsApi.update(dept.id, {
+        slaResponseMs: respMs,
+        slaResolutionMs: resMs,
+      });
+      setDept(updated);
+      setResponseHours('');
+      setResolutionHours('');
+      addToast({ type: 'success', message: 'SLA configuration saved' });
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save SLA' });
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleSaveDescription(): void {
-    toast({ type: 'success', message: 'Description updated' });
+  async function handleSaveDescription(): Promise<void> {
+    if (!dept) return;
+    setSaving(true);
+    try {
+      const updated = await departmentsApi.update(dept.id, { description });
+      setDept(updated);
+      addToast({ type: 'success', message: 'Description updated' });
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save description' });
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleSaveWebhook(): void {
-    toast({ type: 'success', message: 'Webhook URL saved' });
+  async function handleSaveWebhook(): Promise<void> {
+    if (!dept) return;
+    setSaving(true);
+    try {
+      const updated = await departmentsApi.update(dept.id, { teamsWebhook: webhook });
+      setDept(updated);
+      addToast({ type: 'success', message: 'Webhook URL saved' });
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save webhook' });
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleAddMember(): void {
-    addMemberModal.close();
-    setSelectedAddUserId('');
-    toast({ type: 'success', message: 'Member added to department' });
+  async function handleAddMember(): Promise<void> {
+    if (!dept || !selectedAddUserId) return;
+    try {
+      await departmentsApi.addMember(dept.id, selectedAddUserId);
+      addMemberModal.close();
+      setSelectedAddUserId('');
+      addToast({ type: 'success', message: 'Member added to department' });
+      void fetchDept();
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to add member' });
+    }
   }
 
-  function handleRemoveMember(): void {
-    setRemoveMemberId(null);
-    toast({ type: 'success', message: 'Member removed' });
+  async function handleRemoveMember(): Promise<void> {
+    if (!dept || !removeMemberId) return;
+    try {
+      await departmentsApi.removeMember(dept.id, removeMemberId);
+      setRemoveMemberId(null);
+      addToast({ type: 'success', message: 'Member removed' });
+      void fetchDept();
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to remove member' });
+    }
   }
 
-  function handleDeleteDept(): void {
-    deleteModal.close();
-    toast({ type: 'success', message: 'Department deleted' });
-    void navigate('/departments');
+  async function handleDeleteDept(): Promise<void> {
+    if (!dept) return;
+    try {
+      await departmentsApi.remove(dept.id);
+      deleteModal.close();
+      addToast({ type: 'success', message: 'Department deleted' });
+      void navigate('/departments');
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to delete department' });
+    }
   }
 
   const ticketColumns: Column<TicketType>[] = [
     {
       key: 'id',
       header: 'ID',
-      render: (t) => (
+      render: (t: TicketType) => (
         <span style={{ fontFamily: 'var(--font-family-mono)', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
           #{t.id.slice(0, 8)}
         </span>
@@ -117,7 +212,7 @@ export function DepartmentDetailPage(): ReactElement {
     {
       key: 'title',
       header: 'Title',
-      render: (t) => (
+      render: (t: TicketType) => (
         <span style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)' }}>
           {t.title}
         </span>
@@ -127,7 +222,7 @@ export function DepartmentDetailPage(): ReactElement {
     {
       key: 'status',
       header: 'Status',
-      render: (t) => (
+      render: (t: TicketType) => (
         <Badge variant={getStatusVariant(t.status)} size="sm">
           {t.status.replace('_', ' ')}
         </Badge>
@@ -136,7 +231,7 @@ export function DepartmentDetailPage(): ReactElement {
     {
       key: 'priority',
       header: 'Priority',
-      render: (t) => (
+      render: (t: TicketType) => (
         <Badge variant={getPriorityVariant(t.priority)} size="sm">
           {t.priority}
         </Badge>
@@ -145,7 +240,7 @@ export function DepartmentDetailPage(): ReactElement {
     {
       key: 'created',
       header: 'Created',
-      render: (t) => (
+      render: (t: TicketType) => (
         <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
           {format(new Date(t.createdAt), 'MMM d, yyyy')}
         </span>
@@ -227,7 +322,7 @@ export function DepartmentDetailPage(): ReactElement {
                 onChange={(e) => setResolutionHours(e.target.value)}
               />
               <div className={styles.slaBtnWrap}>
-                <Button leftIcon={<Save size={14} />} onClick={handleSaveSLA} size="sm">
+                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveSLA()} size="sm" loading={saving}>
                   Save SLA
                 </Button>
               </div>
@@ -248,9 +343,10 @@ export function DepartmentDetailPage(): ReactElement {
               <div>
                 <Button
                   leftIcon={<Save size={14} />}
-                  onClick={handleSaveDescription}
+                  onClick={() => void handleSaveDescription()}
                   size="sm"
                   variant="secondary"
+                  loading={saving}
                 >
                   Save Description
                 </Button>
@@ -269,7 +365,7 @@ export function DepartmentDetailPage(): ReactElement {
                 onChange={(e) => setWebhook(e.target.value)}
               />
               <div className={styles.slaBtnWrap}>
-                <Button leftIcon={<Save size={14} />} onClick={handleSaveWebhook} size="sm">
+                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveWebhook()} size="sm" loading={saving}>
                   Save
                 </Button>
               </div>
@@ -380,7 +476,7 @@ export function DepartmentDetailPage(): ReactElement {
                 onChange={(e) => setWebhook(e.target.value)}
               />
               <div className={styles.slaBtnWrap}>
-                <Button leftIcon={<Save size={14} />} onClick={handleSaveWebhook} size="sm">
+                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveWebhook()} size="sm" loading={saving}>
                   Save
                 </Button>
               </div>
@@ -414,7 +510,7 @@ export function DepartmentDetailPage(): ReactElement {
             <Button variant="secondary" onClick={addMemberModal.close}>
               Cancel
             </Button>
-            <Button onClick={handleAddMember} disabled={!selectedAddUserId}>
+            <Button onClick={() => void handleAddMember()} disabled={!selectedAddUserId}>
               Add Member
             </Button>
           </>
@@ -433,7 +529,7 @@ export function DepartmentDetailPage(): ReactElement {
       <ConfirmDialog
         isOpen={!!removeMemberId}
         onClose={() => setRemoveMemberId(null)}
-        onConfirm={handleRemoveMember}
+        onConfirm={() => void handleRemoveMember()}
         title="Remove Member"
         description="Are you sure you want to remove this member from the department?"
         confirmLabel="Remove"
@@ -444,7 +540,7 @@ export function DepartmentDetailPage(): ReactElement {
       <ConfirmDialog
         isOpen={deleteModal.isOpen}
         onClose={deleteModal.close}
-        onConfirm={handleDeleteDept}
+        onConfirm={() => void handleDeleteDept()}
         title="Delete Department"
         description={`Are you sure you want to delete "${dept.name}"? This action cannot be undone.`}
         confirmLabel="Delete"

@@ -2,17 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ArrowLeft, ExternalLink, ArrowRightLeft, TrendingUp, CheckCircle2, XCircle, CreditCard, Pencil, Check, X } from 'lucide-react';
-import type { TicketStatus } from '../../../types/index';
+import type { Ticket, TicketStatus } from '../../../types/index';
 import { Button } from '../../../components/ui/index';
 import { Avatar } from '../../../components/ui/index';
 import { SLACountdown } from '../../../components/shared/SLACountdown';
 import { EmptyState } from '../../../components/shared/EmptyState';
-import { useTicketStore } from '../../../store/ticketStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useModal } from '../../../hooks/useModal';
-import { getDeptById } from '../../../mocks/departments';
-import { getUserById } from '../../../mocks/users';
-import { useTicketActions } from '../hooks/useTicketActions';
+import { useToast } from '../../../hooks/useToast';
+import { ticketsApi } from '../../../api/tickets';
 import { TicketStatusBadge } from './TicketStatusBadge';
 import { TicketPriorityBadge } from './TicketPriorityBadge';
 import { CommentThread } from './CommentThread';
@@ -21,21 +19,18 @@ import { PaymentModal } from './PaymentModal';
 import styles from './TicketDetail.module.css';
 
 interface TicketDetailProps {
-  ticketId: string;
+  ticket: Ticket;
+  onRefresh: () => void;
 }
 
-export function TicketDetail({ ticketId }: TicketDetailProps) {
+export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
   const navigate = useNavigate();
-  const tickets = useTicketStore((s) => s.tickets);
-  const updateTicket = useTicketStore((s) => s.updateTicket);
   const currentUser = useAuthStore((s) => s.currentUser);
-  const { acceptTicket, resolveTicket, closeTicket, escalateTicket } = useTicketActions();
+  const { toast } = useToast();
   const transferModal = useModal();
   const paymentModal = useModal();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
-
-  const ticket = tickets.find((t) => t.id === ticketId);
 
   if (!ticket) {
     return (
@@ -48,16 +43,12 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
     );
   }
 
-  const dept = getDeptById(ticket.departmentId);
-  const assignee = ticket.assigneeId ? getUserById(ticket.assigneeId) : null;
-  const requestor = getUserById(ticket.requestorId);
-
   const role = currentUser?.role;
   const isAssignee = currentUser?.id === ticket.assigneeId;
   const isDeptHead = role === 'dept_head' && currentUser?.departmentId === ticket.departmentId;
   const isAdmin = role === 'root_admin';
   const isInDept = currentUser?.departmentId === ticket.departmentId;
-  const isFinance = dept?.id === 'finance';
+  const isFinance = ticket.departmentName?.toLowerCase().includes('finance') ?? false;
 
   const canAccept = ticket.status === 'open' && isInDept && !ticket.assigneeId;
   const canTransfer = isAssignee || isDeptHead || isAdmin;
@@ -66,23 +57,72 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
   const canClose = (isAdmin || isDeptHead) && ticket.status === 'resolved';
   const canInitiatePayment = isFinance && (isDeptHead || isAssignee) && ticket.status === 'resolved';
 
-  function handleStatusChange(newStatus: TicketStatus) {
-    // ticket is guaranteed non-null here (early return above handles null case)
-    updateTicket(ticket!.id, { status: newStatus });
+  async function handleStatusChange(_newStatus: TicketStatus) {
+    // Status changes are handled via dedicated action buttons (accept/resolve/close/escalate)
+    // This is left as a no-op since direct status change via badge is no longer supported without an API mapping
   }
 
   function startEditTitle() {
-    setTitleDraft(ticket!.title);
+    setTitleDraft(ticket.title);
     setEditingTitle(true);
   }
 
-  function saveTitle() {
-    if (titleDraft.trim()) updateTicket(ticket!.id, { title: titleDraft.trim() });
+  async function saveTitle() {
+    if (titleDraft.trim()) {
+      try {
+        await ticketsApi.update(ticket.id, { title: titleDraft.trim() });
+        toast({ type: 'success', message: 'Title updated.' });
+        onRefresh();
+      } catch {
+        toast({ type: 'error', message: 'Failed to update title.' });
+      }
+    }
     setEditingTitle(false);
   }
 
   function cancelEditTitle() {
     setEditingTitle(false);
+  }
+
+  async function handleAccept() {
+    if (!currentUser) return;
+    try {
+      await ticketsApi.assign(ticket.id, currentUser.id);
+      toast({ type: 'success', message: 'Ticket accepted and assigned to you.' });
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to accept ticket.' });
+    }
+  }
+
+  async function handleResolve() {
+    try {
+      await ticketsApi.resolve(ticket.id, '');
+      toast({ type: 'success', message: 'Ticket marked as resolved.' });
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to resolve ticket.' });
+    }
+  }
+
+  async function handleEscalate() {
+    try {
+      await ticketsApi.escalate(ticket.id, '');
+      toast({ type: 'success', message: 'Ticket escalated.' });
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to escalate ticket.' });
+    }
+  }
+
+  async function handleClose() {
+    try {
+      await ticketsApi.close(ticket.id);
+      toast({ type: 'success', message: 'Ticket closed.' });
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to close ticket.' });
+    }
   }
 
   const canEditTitle = isAssignee || isDeptHead || isAdmin;
@@ -144,28 +184,29 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
               readOnly={!canTransfer}
             />
             <TicketPriorityBadge priority={ticket.priority} />
-            {dept && (
-              <span className={styles.deptBadge}>{dept.name}</span>
+            {ticket.departmentName && (
+              <span className={styles.deptBadge}>{ticket.departmentName}</span>
             )}
           </div>
 
           {/* SLA */}
-          {dept && (
-            <SLACountdown
-              createdAt={ticket.createdAt}
-              slaDurationMs={dept.sla.resolutionTimeMs}
-              variant="bar"
-            />
+          {ticket.slaResolutionDeadline && (
+            <SLACountdown deadline={ticket.slaResolutionDeadline} variant="bar" />
           )}
 
           {/* Meta grid */}
           <div className={styles.metaGrid}>
             <span className={styles.metaLabel}>Assignee</span>
             <span className={styles.metaValue}>
-              {assignee ? (
+              {ticket.assigneeName ? (
                 <span className={styles.userChip}>
-                  <Avatar initials={assignee.avatarInitials} color={assignee.avatarColor} size="xs" name={assignee.name} />
-                  {assignee.name}
+                  <Avatar
+                    initials={ticket.assigneeInitials ?? ticket.assigneeName.slice(0, 2).toUpperCase()}
+                    color={ticket.assigneeColor ?? '#4F6EF7'}
+                    size="xs"
+                    name={ticket.assigneeName}
+                  />
+                  {ticket.assigneeName}
                 </span>
               ) : (
                 <span className={styles.unassigned}>Unassigned</span>
@@ -173,12 +214,16 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
             </span>
             <span className={styles.metaLabel}>Requestor</span>
             <span className={styles.metaValue}>
-              {requestor ? (
+              {ticket.requestorName ? (
                 <span className={styles.userChip}>
-                  <Avatar initials={requestor.avatarInitials} color={requestor.avatarColor} size="xs" name={requestor.name} />
+                  <Avatar
+                    initials={ticket.requestorInitials ?? ticket.requestorName.slice(0, 2).toUpperCase()}
+                    color='#4F6EF7'
+                    size="xs"
+                    name={ticket.requestorName}
+                  />
                   <span>
-                    <span className={styles.userName}>{requestor.name}</span>
-                    <span className={styles.userEmail}>{requestor.email}</span>
+                    <span className={styles.userName}>{ticket.requestorName}</span>
                   </span>
                 </span>
               ) : '—'}
@@ -219,22 +264,17 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
             <div className={styles.section}>
               <h4 className={styles.sectionTitle}>Transfer History</h4>
               <div className={styles.transferList}>
-                {ticket.transferHistory.map((tr) => {
-                  const fromDept = getDeptById(tr.fromDeptId);
-                  const toDept = getDeptById(tr.toDeptId);
-                  const byUser = getUserById(tr.byUserId);
-                  return (
-                    <div key={tr.id} className={styles.transferEntry}>
-                      <span className={styles.transferRoute}>
-                        {fromDept?.name ?? tr.fromDeptId} → {toDept?.name ?? tr.toDeptId}
-                      </span>
-                      <span className={styles.transferMeta}>
-                        by {byUser?.name ?? tr.byUserId} · {format(new Date(tr.timestamp), 'MMM d, HH:mm')}
-                      </span>
-                      {tr.note && <span className={styles.transferNote}>{tr.note}</span>}
-                    </div>
-                  );
-                })}
+                {ticket.transferHistory.map((tr) => (
+                  <div key={tr.id} className={styles.transferEntry}>
+                    <span className={styles.transferRoute}>
+                      {tr.fromDeptId.slice(0, 8)} → {tr.toDeptId.slice(0, 8)}
+                    </span>
+                    <span className={styles.transferMeta}>
+                      by {tr.byUserId.slice(0, 8)} · {format(new Date(tr.timestamp), 'MMM d, HH:mm')}
+                    </span>
+                    {tr.note && <span className={styles.transferNote}>{tr.note}</span>}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -242,7 +282,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
           {/* Action bar */}
           <div className={styles.actionBar}>
             {canAccept && (
-              <Button onClick={() => acceptTicket(ticket.id)}>Accept Ticket</Button>
+              <Button onClick={handleAccept}>Accept Ticket</Button>
             )}
             {canTransfer && (
               <Button variant="secondary" leftIcon={<ArrowRightLeft size={14} />} onClick={transferModal.open}>
@@ -250,17 +290,17 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
               </Button>
             )}
             {canResolve && (
-              <Button variant="secondary" leftIcon={<CheckCircle2 size={14} />} onClick={() => resolveTicket(ticket.id)}>
+              <Button variant="secondary" leftIcon={<CheckCircle2 size={14} />} onClick={handleResolve}>
                 Mark Resolved
               </Button>
             )}
             {canEscalate && (
-              <Button variant="secondary" leftIcon={<TrendingUp size={14} />} onClick={() => escalateTicket(ticket.id)}>
+              <Button variant="secondary" leftIcon={<TrendingUp size={14} />} onClick={handleEscalate}>
                 Escalate
               </Button>
             )}
             {canClose && (
-              <Button variant="secondary" leftIcon={<XCircle size={14} />} onClick={() => closeTicket(ticket.id)}>
+              <Button variant="secondary" leftIcon={<XCircle size={14} />} onClick={handleClose}>
                 Close Ticket
               </Button>
             )}
@@ -274,7 +314,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
 
         {/* Right Panel */}
         <div className={styles.rightPanel}>
-          <CommentThread ticketId={ticket.id} comments={ticket.comments} />
+          <CommentThread ticketId={ticket.id} comments={ticket.comments} onRefresh={onRefresh} />
         </div>
       </div>
 
@@ -283,6 +323,7 @@ export function TicketDetail({ ticketId }: TicketDetailProps) {
         onClose={transferModal.close}
         ticketId={ticket.id}
         currentDeptId={ticket.departmentId}
+        onRefresh={onRefresh}
       />
       <PaymentModal
         isOpen={paymentModal.isOpen}

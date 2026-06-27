@@ -8,10 +8,9 @@ import styles from './AppShell.module.css';
 
 export function AppShell(): ReactElement {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isFirstLogin = useAuthStore((s) => s.isFirstLogin);
+  const isInitializing = useAuthStore((s) => s.isInitializing);
   const theme = useAuthStore((s) => s.theme);
 
-  // Apply theme class to <html> element whenever theme changes
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -20,12 +19,16 @@ export function AppShell(): ReactElement {
     }
   }, [theme]);
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  if (isInitializing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>Loading…</div>
+      </div>
+    );
   }
 
-  if (isFirstLogin) {
-    return <Navigate to="/reset-password" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
 
   return (

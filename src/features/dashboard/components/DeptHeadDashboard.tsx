@@ -1,51 +1,76 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Ticket, CheckCircle, Clock, Activity } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuthStore } from '../../../store/authStore';
-import { TICKETS } from '../../../mocks/tickets';
-import { ROSTER } from '../../../mocks/roster';
-import { getUserById } from '../../../mocks/users';
-import { DEPARTMENTS } from '../../../mocks/departments';
+import { ticketsApi } from '../../../api/tickets';
+import { rosterApi } from '../../../api/roster';
 import { PageWrapper } from '../../../components/layout/PageWrapper';
 import { Avatar } from '../../../components/ui/index';
 import { StatCard } from './StatCard';
+import type { Ticket as TicketType, Shift } from '../../../types/index';
 import styles from './DeptHeadDashboard.module.css';
-
-const TODAY = '2026-06-26';
 
 export function DeptHeadDashboard() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const deptId = currentUser?.departmentId ?? 'tech';
-  const dept = DEPARTMENTS.find((d) => d.id === deptId);
 
-  const deptTickets = TICKETS.filter((t) => t.departmentId === deptId);
+  const [deptTickets, setDeptTickets] = useState<TicketType[]>([]);
+  const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    Promise.all([
+      ticketsApi.list({ page: 1, limit: 25 }),
+      rosterApi.list({ month: currentMonth }),
+    ]).then(([ticketsRes, shiftsRes]) => {
+      setDeptTickets(ticketsRes.data);
+      setTodayShifts(shiftsRes.filter((s) => s.departmentId === deptId && s.date === todayStr));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
   const openCount = deptTickets.filter((t) => t.status === 'open').length;
   const inProgressCount = deptTickets.filter((t) => t.status === 'in_progress').length;
-  const resolvedThisWeek = deptTickets.filter((t) => t.resolvedAt && t.resolvedAt >= '2026-06-22').length;
+  const weekAgoStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const resolvedThisWeek = deptTickets.filter((t) => t.resolvedAt && t.resolvedAt >= weekAgoStr).length;
   const slaOk = deptTickets.filter((t) => t.status !== 'defaulted' && t.status !== 'escalated').length;
   const slaRate = deptTickets.length > 0 ? Math.round((slaOk / deptTickets.length) * 100) : 0;
 
-  // Team workload
-  const deptMembers = dept ? [...dept.memberIds, dept.headId] : [];
-  const workloadData = deptMembers.map((uid) => {
-    const user = getUserById(uid);
-    const count = deptTickets.filter((t) => t.assigneeId === uid).length;
-    return { name: user?.name.split(' ')[0] ?? uid, tickets: count };
-  });
+  // Team workload — group by assignee using embedded assigneeName when available
+  const workloadMap = new Map<string, { name: string; tickets: number }>();
+  for (const t of deptTickets) {
+    if (!t.assigneeId) continue;
+    const existing = workloadMap.get(t.assigneeId);
+    const name = t.assigneeName?.split(' ')[0] ?? t.assigneeId;
+    if (existing) {
+      existing.tickets += 1;
+    } else {
+      workloadMap.set(t.assigneeId, { name, tickets: 1 });
+    }
+  }
+  const workloadData = Array.from(workloadMap.values());
 
-  // On duty today
-  const todayShifts = ROSTER.filter((s) => s.departmentId === deptId && s.date === TODAY);
-  const onDutyUsers = todayShifts.map((s) => ({ shift: s, user: getUserById(s.userId) })).filter((x) => x.user);
-
-  // Recent activity
+  // Recent activity — comments across dept tickets
   const recentActivity = deptTickets
     .flatMap((t) => t.comments.map((c) => ({ ticket: t, comment: c })))
     .sort((a, b) => new Date(b.comment.createdAt).getTime() - new Date(a.comment.createdAt).getTime())
     .slice(0, 5);
 
+  if (loading) {
+    return (
+      <PageWrapper title="Department Dashboard" subtitle="Your department at a glance">
+        <p style={{ color: 'var(--color-text-secondary)', padding: '2rem' }}>Loading…</p>
+      </PageWrapper>
+    );
+  }
+
   return (
-    <PageWrapper title={`${dept?.name ?? 'Department'} Dashboard`} subtitle="Your department at a glance">
+    <PageWrapper title="Department Dashboard" subtitle="Your department at a glance">
       <div className={styles.statsGrid}>
         <StatCard title="Open" value={openCount} icon={<Ticket size={20} color="var(--color-info)" />} iconBg="var(--color-info-bg)" />
         <StatCard title="In Progress" value={inProgressCount} icon={<Clock size={20} color="var(--color-warning)" />} iconBg="var(--color-warning-bg)" />
@@ -70,18 +95,21 @@ export function DeptHeadDashboard() {
         <div className={styles.card}>
           <h3 className={styles.cardTitle}>On Duty Today</h3>
           <div className={styles.onDutyCard}>
-            {onDutyUsers.length === 0 ? (
+            {todayShifts.length === 0 ? (
               <p className={styles.noOnDuty}>No shifts scheduled today</p>
             ) : (
-              onDutyUsers.map(({ shift, user }) => user ? (
-                <div key={shift.id} className={styles.onDutyUser}>
-                  <Avatar initials={user.avatarInitials} color={user.avatarColor} size="sm" online={user.isOnline} />
-                  <div>
-                    <div className={styles.onDutyName}>{user.name}</div>
-                    <div className={styles.onDutyTime}>{shift.startTime} – {shift.endTime}</div>
+              todayShifts.map((shift) => {
+                const initials = shift.userId.slice(0, 2).toUpperCase();
+                return (
+                  <div key={shift.id} className={styles.onDutyUser}>
+                    <Avatar initials={initials} color="var(--color-primary)" size="sm" />
+                    <div>
+                      <div className={styles.onDutyName}>{shift.userId}</div>
+                      <div className={styles.onDutyTime}>{shift.startTime} – {shift.endTime}</div>
+                    </div>
                   </div>
-                </div>
-              ) : null)
+                );
+              })
             )}
           </div>
         </div>

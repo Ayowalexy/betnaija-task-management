@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 import {
   Building2, Bell, CreditCard, Clock,
@@ -8,7 +8,8 @@ import {
 import { PageWrapper } from '../../../components/layout/PageWrapper.js';
 import { Tabs, Button, Input } from '../../../components/ui/index.js';
 import { useToast } from '../../../hooks/useToast.js';
-import { DEPARTMENTS } from '../../../mocks/departments.js';
+import { settingsApi } from '../../../api/settings.js';
+import type { OrgSettings } from '../../../api/settings.js';
 import styles from './SettingsPage.module.css';
 
 const TABS = [
@@ -103,21 +104,91 @@ function MaskedInput({ label, placeholder }: { label: string; placeholder?: stri
 export function SettingsPage(): ReactElement {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('general');
-  const [orgName, setOrgName] = useState('FlowDesk Corp');
-  const [notifEmail, setNotifEmail] = useState(true);
-  const [notifTeams, setNotifTeams] = useState(true);
-  const [notifWhatsapp, setNotifWhatsapp] = useState(false);
-  const [slaValues, setSlaValues] = useState(
-    DEPARTMENTS.map((d) => ({
-      id: d.id,
-      name: d.name,
-      responseHours: d.sla.responseTimeMs / (1000 * 60 * 60),
-      resolutionHours: d.sla.resolutionTimeMs / (1000 * 60 * 60),
-    }))
-  );
+  const [settings, setSettings] = useState<OrgSettings | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  function updateSla(id: string, field: 'responseHours' | 'resolutionHours', val: number): void {
-    setSlaValues((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: val } : s)));
+  // General tab state
+  const [orgName, setOrgName] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Notification tab state
+  const [notifyOnEscalate, setNotifyOnEscalate] = useState(true);
+  const [notifyOnBreach, setNotifyOnBreach] = useState(true);
+
+  // SLA tab state (ms -> hours for display)
+  const [slaResponseHours, setSlaResponseHours] = useState(4);
+  const [slaResolutionHours, setSlaResolutionHours] = useState(24);
+
+  useEffect(() => {
+    settingsApi.get().then((data) => {
+      setSettings(data);
+      setOrgName(data.orgName);
+      setLogoUrl(data.logoUrl);
+      setNotifyOnEscalate(data.notifyOnEscalate);
+      setNotifyOnBreach(data.notifyOnBreach);
+      setSlaResponseHours(data.defaultSlaResponseMs / (1000 * 60 * 60));
+      setSlaResolutionHours(data.defaultSlaResolutionMs / (1000 * 60 * 60));
+    }).catch(() => {
+      toast({ type: 'error', message: 'Failed to load settings' });
+    }).finally(() => {
+      setLoading(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSaveGeneral(): Promise<void> {
+    try {
+      const updated = await settingsApi.update({ orgName });
+      setSettings(updated);
+      toast({ type: 'success', message: 'General settings saved' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to save settings' });
+    }
+  }
+
+  async function handleLogoUpload(file: File): Promise<void> {
+    try {
+      const updated = await settingsApi.uploadLogo(file);
+      setSettings(updated);
+      setLogoUrl(updated.logoUrl);
+      toast({ type: 'success', message: 'Logo updated' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to upload logo' });
+    }
+  }
+
+  async function handleSaveNotifications(): Promise<void> {
+    try {
+      const updated = await settingsApi.update({ notifyOnEscalate, notifyOnBreach });
+      setSettings(updated);
+      toast({ type: 'success', message: 'Notification preferences saved' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to save notification settings' });
+    }
+  }
+
+  async function handleSaveSla(): Promise<void> {
+    try {
+      const updated = await settingsApi.update({
+        defaultSlaResponseMs: slaResponseHours * 60 * 60 * 1000,
+        defaultSlaResolutionMs: slaResolutionHours * 60 * 60 * 1000,
+      });
+      setSettings(updated);
+      toast({ type: 'success', message: 'SLA defaults saved' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to save SLA settings' });
+    }
+  }
+
+  if (loading) {
+    return (
+      <PageWrapper title="Settings" subtitle="Configure global platform settings">
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+          Loading settings…
+        </div>
+      </PageWrapper>
+    );
   }
 
   return (
@@ -131,7 +202,7 @@ export function SettingsPage(): ReactElement {
           icon={<Building2 size={20} />}
           title="Organization Settings"
           description="Manage your organization's name and branding"
-          onSave={() => toast({ type: 'success', message: 'General settings saved' })}
+          onSave={handleSaveGeneral}
         >
           <>
             <div className={styles.field}>
@@ -139,10 +210,31 @@ export function SettingsPage(): ReactElement {
             </div>
             <div>
               <span className={styles.fieldLabel}>Organization Logo</span>
-              <div className={styles.logoBox}>
+              {logoUrl && (
+                <div style={{ marginBottom: 8 }}>
+                  <img src={logoUrl} alt="Current logo" style={{ maxHeight: 48, borderRadius: 4 }} />
+                </div>
+              )}
+              <div
+                className={styles.logoBox}
+                onClick={() => logoInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && logoInputRef.current?.click()}
+              >
                 <Upload size={22} className={styles.logoIcon} />
                 <span className={styles.logoText}>Click to upload logo</span>
                 <span className={styles.logoHint}>PNG, SVG or JPG, max 2MB</span>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/svg+xml,image/jpeg"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleLogoUpload(file);
+                  }}
+                />
               </div>
             </div>
           </>
@@ -154,12 +246,12 @@ export function SettingsPage(): ReactElement {
           icon={<Bell size={20} />}
           title="Notification Channels"
           description="Choose how your team receives platform notifications"
-          onSave={() => toast({ type: 'success', message: 'Notification preferences saved' })}
+          onSave={handleSaveNotifications}
         >
           <div className={styles.toggleGroup}>
-            <ToggleRow icon={<Mail size={16} />} label="Email" description="Receive notifications via email" checked={notifEmail} onChange={setNotifEmail} />
-            <ToggleRow icon={<MessageSquare size={16} />} label="Microsoft Teams" description="Send alerts to Teams channels" checked={notifTeams} onChange={setNotifTeams} />
-            <ToggleRow icon={<Phone size={16} />} label="WhatsApp" description="Push notifications via WhatsApp" checked={notifWhatsapp} onChange={setNotifWhatsapp} />
+            <ToggleRow icon={<Mail size={16} />} label="Email" description="Receive notifications via email" checked={true} onChange={() => {}} />
+            <ToggleRow icon={<MessageSquare size={16} />} label="Notify on Escalate" description="Send alerts when tickets are escalated" checked={notifyOnEscalate} onChange={setNotifyOnEscalate} />
+            <ToggleRow icon={<Phone size={16} />} label="Notify on SLA Breach" description="Push notifications on SLA breach" checked={notifyOnBreach} onChange={setNotifyOnBreach} />
           </div>
         </SectionCard>
       )}
@@ -192,39 +284,44 @@ export function SettingsPage(): ReactElement {
         <SectionCard
           icon={<Clock size={20} />}
           title="SLA Default Configuration"
-          description="Set default response and resolution windows per department"
-          onSave={() => toast({ type: 'success', message: 'SLA defaults saved' })}
+          description="Set default response and resolution windows"
+          onSave={handleSaveSla}
           saveLabel="Save All"
         >
           <div className={styles.slaTable}>
             <div className={styles.slaHeader}>
-              <span>Department</span>
-              <span>Response (hrs)</span>
-              <span>Resolution (hrs)</span>
+              <span>Setting</span>
+              <span>Hours</span>
             </div>
-            {slaValues.map((row, i) => (
-              <div key={row.id} className={[styles.slaRow, i % 2 === 0 ? styles.slaRowAlt : ''].filter(Boolean).join(' ')}>
-                <span className={styles.deptName}>{row.name}</span>
-                <Input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  value={row.responseHours}
-                  onChange={(e) => updateSla(row.id, 'responseHours', parseFloat(e.target.value) || 0)}
-                  wrapperClassName={styles.slaInput}
-                />
-                <Input
-                  type="number"
-                  step="1"
-                  min="1"
-                  value={row.resolutionHours}
-                  onChange={(e) => updateSla(row.id, 'resolutionHours', parseFloat(e.target.value) || 0)}
-                  wrapperClassName={styles.slaInput}
-                />
-              </div>
-            ))}
+            <div className={styles.slaRow}>
+              <span className={styles.deptName}>Default Response Time</span>
+              <Input
+                type="number"
+                step="0.5"
+                min="0.5"
+                value={slaResponseHours}
+                onChange={(e) => setSlaResponseHours(parseFloat(e.target.value) || 0)}
+                wrapperClassName={styles.slaInput}
+              />
+            </div>
+            <div className={[styles.slaRow, styles.slaRowAlt].join(' ')}>
+              <span className={styles.deptName}>Default Resolution Time</span>
+              <Input
+                type="number"
+                step="1"
+                min="1"
+                value={slaResolutionHours}
+                onChange={(e) => setSlaResolutionHours(parseFloat(e.target.value) || 0)}
+                wrapperClassName={styles.slaInput}
+              />
+            </div>
           </div>
         </SectionCard>
+      )}
+
+      {/* Display current org info */}
+      {settings && (
+        <div style={{ display: 'none' }} aria-hidden="true" data-settings-id={settings.id} />
       )}
     </PageWrapper>
   );

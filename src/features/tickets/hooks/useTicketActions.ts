@@ -1,47 +1,57 @@
-import { useTicketStore } from '../../../store/ticketStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useToast } from '../../../hooks/useToast';
+import { ticketsApi } from '../../../api/tickets';
 
 interface UseTicketActionsReturn {
-  acceptTicket: (ticketId: string) => void;
-  resolveTicket: (ticketId: string) => void;
-  closeTicket: (ticketId: string) => void;
-  escalateTicket: (ticketId: string) => void;
+  acceptTicket: (ticketId: string, onRefresh?: () => void) => Promise<void>;
+  resolveTicket: (ticketId: string, onRefresh?: () => void) => Promise<void>;
+  closeTicket: (ticketId: string, onRefresh?: () => void) => Promise<void>;
+  escalateTicket: (ticketId: string, onRefresh?: () => void) => Promise<void>;
 }
 
 export function useTicketActions(): UseTicketActionsReturn {
-  const updateTicket = useTicketStore((s) => s.updateTicket);
   const currentUser = useAuthStore((s) => s.currentUser);
   const { toast } = useToast();
 
-  function acceptTicket(ticketId: string): void {
+  async function acceptTicket(ticketId: string, onRefresh?: () => void): Promise<void> {
     if (!currentUser) return;
-    updateTicket(ticketId, {
-      assigneeId: currentUser.id,
-      status: 'in_progress',
-    });
-    toast({ type: 'success', message: 'Ticket accepted and assigned to you.' });
+    try {
+      await ticketsApi.assign(ticketId, currentUser.id);
+      toast({ type: 'success', message: 'Ticket accepted and assigned to you.' });
+      onRefresh?.();
+    } catch {
+      toast({ type: 'error', message: 'Failed to accept ticket.' });
+    }
   }
 
-  function resolveTicket(ticketId: string): void {
-    updateTicket(ticketId, {
-      status: 'resolved',
-      resolvedAt: new Date().toISOString(),
-    });
-    toast({ type: 'success', message: 'Ticket marked as resolved.' });
+  async function resolveTicket(ticketId: string, onRefresh?: () => void): Promise<void> {
+    try {
+      await ticketsApi.resolve(ticketId, '');
+      toast({ type: 'success', message: 'Ticket marked as resolved.' });
+      onRefresh?.();
+    } catch {
+      toast({ type: 'error', message: 'Failed to resolve ticket.' });
+    }
   }
 
-  function closeTicket(ticketId: string): void {
-    updateTicket(ticketId, {
-      status: 'closed',
-      closedAt: new Date().toISOString(),
-    });
-    toast({ type: 'success', message: 'Ticket closed.' });
+  async function closeTicket(ticketId: string, onRefresh?: () => void): Promise<void> {
+    try {
+      await ticketsApi.close(ticketId);
+      toast({ type: 'success', message: 'Ticket closed.' });
+      onRefresh?.();
+    } catch {
+      toast({ type: 'error', message: 'Failed to close ticket.' });
+    }
   }
 
-  function escalateTicket(ticketId: string): void {
-    updateTicket(ticketId, { status: 'escalated' });
-    toast({ type: 'success', message: 'Ticket escalated.' });
+  async function escalateTicket(ticketId: string, onRefresh?: () => void): Promise<void> {
+    try {
+      await ticketsApi.escalate(ticketId, '');
+      toast({ type: 'success', message: 'Ticket escalated.' });
+      onRefresh?.();
+    } catch {
+      toast({ type: 'error', message: 'Failed to escalate ticket.' });
+    }
   }
 
   return { acceptTicket, resolveTicket, closeTicket, escalateTicket };

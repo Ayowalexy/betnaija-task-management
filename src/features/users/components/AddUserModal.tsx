@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -5,15 +6,18 @@ import { Modal } from '../../../components/ui/index.js';
 import { Button } from '../../../components/ui/index.js';
 import { Input } from '../../../components/ui/index.js';
 import { Select } from '../../../components/ui/index.js';
-import { useToast } from '../../../hooks/useToast.js';
-import { DEPARTMENTS } from '../../../mocks/departments.js';
+import { useUIStore } from '../../../store/uiStore.js';
+import { departmentsApi } from '../../../api/departments.js';
+import { usersApi } from '../../../api/users.js';
 import { createUserSchema } from '../schemas.js';
 import type { CreateUserFormData } from '../schemas.js';
+import type { Department } from '../../../types/index.js';
 import styles from './AddUserModal.module.css';
 
 interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
 const roleOptions = [
@@ -22,10 +26,16 @@ const roleOptions = [
   { value: 'team_member', label: 'Team Member' },
 ];
 
-const deptOptions = DEPARTMENTS.map((d) => ({ value: d.id, label: d.name }));
+export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps): ReactElement {
+  const addToast = useUIStore((s) => s.addToast);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
-export function AddUserModal({ isOpen, onClose }: AddUserModalProps): ReactElement {
-  const { toast } = useToast();
+  useEffect(() => {
+    if (!isOpen) return;
+    void departmentsApi.list({ limit: 200 }).then((res) => setDepartments(res.data));
+  }, [isOpen]);
+
+  const deptOptions = departments.map((d) => ({ value: d.id, label: d.name }));
 
   const {
     register,
@@ -46,9 +56,22 @@ export function AddUserModal({ isOpen, onClose }: AddUserModalProps): ReactEleme
     onClose();
   }
 
-  function onSubmit(_data: CreateUserFormData): void {
-    toast({ type: 'success', message: 'User added' });
-    handleClose();
+  async function onSubmit(data: CreateUserFormData): Promise<void> {
+    try {
+      await usersApi.create({
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        departmentId: isRootAdmin ? null : (data.departmentId || null),
+        temporaryPassword: crypto.randomUUID().slice(0, 12),
+      });
+      addToast({ type: 'success', message: 'User added' });
+      reset();
+      onSuccess ? onSuccess() : onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create user';
+      addToast({ type: 'error', message });
+    }
   }
 
   const footer = (

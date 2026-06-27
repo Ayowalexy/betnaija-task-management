@@ -1,19 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { format } from 'date-fns';
 import { Search, UserPlus, MoreVertical, Mail, Building2, Calendar, Clock } from 'lucide-react';
 import { PageWrapper } from '../../../components/layout/PageWrapper.js';
-import { Button, Input, Select, Avatar, Dropdown, Modal, Badge, getStatusVariant } from '../../../components/ui/index.js';
+import { Button, Input, Select, Avatar, Dropdown, Modal, Badge } from '../../../components/ui/index.js';
 import { DataTable } from '../../../components/shared/DataTable.js';
 import type { Column } from '../../../components/shared/DataTable.js';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog.js';
 import { EmptyState } from '../../../components/shared/EmptyState.js';
-import { USERS } from '../../../mocks/users.js';
-import { DEPARTMENTS } from '../../../mocks/departments.js';
-import { TICKETS } from '../../../mocks/tickets.js';
-import { useToast } from '../../../hooks/useToast.js';
+import { useUIStore } from '../../../store/uiStore.js';
 import { useModal } from '../../../hooks/useModal.js';
-import type { User } from '../../../types/index.js';
+import { usersApi } from '../../../api/users.js';
+import { departmentsApi } from '../../../api/departments.js';
+import type { User, Department } from '../../../types/index.js';
 import { UserStatusBadge } from './UserStatusBadge.js';
 import { AddUserModal } from './AddUserModal.js';
 import styles from './UsersPage.module.css';
@@ -26,24 +25,15 @@ function formatRole(role: User['role']): string {
   }
 }
 
-function getDeptName(deptId: string | null): string {
-  if (!deptId) return 'N/A';
-  return DEPARTMENTS.find((d) => d.id === deptId)?.name ?? 'N/A';
-}
-
-function formatStatus(s: string): string {
-  return s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 interface UserDetailModalProps {
   user: User | null;
   onClose: () => void;
+  getDeptName: (id: string | null) => string;
 }
 
-function UserDetailModal({ user, onClose }: UserDetailModalProps): ReactElement | null {
+function UserDetailModal({ user, onClose, getDeptName }: UserDetailModalProps): ReactElement | null {
   if (!user) return null;
-  const userTickets = TICKETS.filter((t) => t.requestorId === user.id);
-  const shown = userTickets.slice(0, 5);
 
   return (
     <Modal isOpen title={user.name} onClose={onClose} size="lg">
@@ -64,35 +54,19 @@ function UserDetailModal({ user, onClose }: UserDetailModalProps): ReactElement 
         <div className={styles.infoItem}><Calendar size={13} className={styles.infoIcon} /><div><span className={styles.infoLabel}>Date Joined</span><span className={styles.infoValue}>{format(new Date(user.joinDate), 'MMM d, yyyy')}</span></div></div>
         <div className={styles.infoItem}><Clock size={13} className={styles.infoIcon} /><div><span className={styles.infoLabel}>Last Login</span><span className={styles.infoValue}>{user.lastLogin ? format(new Date(user.lastLogin), 'MMM d, yyyy h:mm a') : 'Never'}</span></div></div>
       </div>
-
-      <div className={styles.ticketsSection}>
-        <h4 className={styles.ticketsSectionTitle}>Tickets Raised <span className={styles.ticketCount}>{userTickets.length}</span></h4>
-        {shown.length === 0 ? (
-          <p className={styles.noTickets}>No tickets raised yet.</p>
-        ) : (
-          <div className={styles.ticketList}>
-            {shown.map((t) => (
-              <div key={t.id} className={styles.ticketRow}>
-                <span className={styles.ticketTitle}>{t.title}</span>
-                <div className={styles.ticketMeta}>
-                  <Badge variant={getStatusVariant(t.status)} size="sm">{formatStatus(t.status)}</Badge>
-                  <span className={styles.ticketDate}>{format(new Date(t.createdAt), 'MMM d')}</span>
-                </div>
-              </div>
-            ))}
-            {userTickets.length > 5 && (
-              <p className={styles.viewAll}>+ {userTickets.length - 5} more tickets</p>
-            )}
-          </div>
-        )}
-      </div>
     </Modal>
   );
 }
 
 export function UsersPage(): ReactElement {
-  const { toast } = useToast();
+  const addToast = useUIStore((s) => s.addToast);
   const addModal = useModal();
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [departments, setDepartments] = useState<Department[]>([]);
+
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -101,9 +75,49 @@ export function UsersPage(): ReactElement {
   const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [detailUser, setDetailUser] = useState<User | null>(null);
 
+  const PAGE_LIMIT = 10;
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await usersApi.list({
+        search: search || undefined,
+        departmentId: deptFilter || undefined,
+        role: roleFilter || undefined,
+        status: statusFilter || undefined,
+        page,
+        limit: PAGE_LIMIT,
+      });
+      setUsers(result.data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load users';
+      addToast({ type: 'error', message });
+    } finally {
+      setLoading(false);
+    }
+  }, [search, deptFilter, roleFilter, statusFilter, page, addToast]);
+
+  useEffect(() => {
+    void fetchUsers();
+  }, [fetchUsers]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, deptFilter, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    void departmentsApi.list({ limit: 200 }).then((res) => setDepartments(res.data));
+  }, []);
+
+  function getDeptName(deptId: string | null): string {
+    if (!deptId) return 'N/A';
+    return departments.find((d) => d.id === deptId)?.name ?? 'N/A';
+  }
+
   const deptOptions = [
     { value: '', label: 'All Departments' },
-    ...DEPARTMENTS.map((d) => ({ value: d.id, label: d.name })),
+    ...departments.map((d) => ({ value: d.id, label: d.name })),
   ];
   const roleOptions = [
     { value: '', label: 'All Roles' },
@@ -117,28 +131,30 @@ export function UsersPage(): ReactElement {
     { value: 'suspended', label: 'Suspended' },
   ];
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return USERS.filter((u) => {
-      if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
-      if (deptFilter && u.departmentId !== deptFilter) return false;
-      if (roleFilter && u.role !== roleFilter) return false;
-      if (statusFilter && u.status !== statusFilter) return false;
-      return true;
-    });
-  }, [search, deptFilter, roleFilter, statusFilter]);
+  const suspendTarget = users.find((u) => u.id === suspendUserId);
 
-  const suspendTarget = USERS.find((u) => u.id === suspendUserId);
-
-  function handleSuspend(): void {
+  async function handleSuspend(): Promise<void> {
     if (!suspendTarget) return;
-    toast({ type: 'success', message: `User ${suspendTarget.status === 'active' ? 'suspended' : 'activated'}` });
-    setSuspendUserId(null);
+    try {
+      const newStatus = suspendTarget.status === 'active' ? 'suspended' : 'active';
+      await usersApi.update(suspendTarget.id, { status: newStatus });
+      addToast({ type: 'success', message: `User ${suspendTarget.status === 'active' ? 'suspended' : 'activated'}` });
+      setSuspendUserId(null);
+      void fetchUsers();
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update user status' });
+    }
   }
 
-  function handleResetPassword(): void {
-    toast({ type: 'success', message: 'Password reset email sent' });
-    setResetUserId(null);
+  async function handleResetPassword(): Promise<void> {
+    if (!resetUserId) return;
+    try {
+      await usersApi.resetPassword(resetUserId, crypto.randomUUID().slice(0, 12));
+      addToast({ type: 'success', message: 'Password reset email sent' });
+      setResetUserId(null);
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to reset password' });
+    }
   }
 
   const columns: Column<User>[] = [
@@ -191,19 +207,23 @@ export function UsersPage(): ReactElement {
 
       <DataTable<User>
         columns={columns}
-        data={filtered}
+        data={users}
         keyExtractor={(u) => u.id}
-        pageSize={10}
-        emptyState={<EmptyState title="No users found" description={search ? 'Try adjusting your search.' : 'No users have been added yet.'} />}
+        pageSize={PAGE_LIMIT}
+        emptyState={
+          loading
+            ? <EmptyState title="Loading users…" description="Please wait." />
+            : <EmptyState title="No users found" description={search ? 'Try adjusting your search.' : 'No users have been added yet.'} />
+        }
       />
 
-      <UserDetailModal user={detailUser} onClose={() => setDetailUser(null)} />
-      <AddUserModal isOpen={addModal.isOpen} onClose={addModal.close} />
+      <UserDetailModal user={detailUser} onClose={() => setDetailUser(null)} getDeptName={getDeptName} />
+      <AddUserModal isOpen={addModal.isOpen} onClose={addModal.close} onSuccess={() => void fetchUsers()} />
 
       <ConfirmDialog
         isOpen={!!suspendUserId}
         onClose={() => setSuspendUserId(null)}
-        onConfirm={handleSuspend}
+        onConfirm={() => void handleSuspend()}
         title={suspendTarget?.status === 'active' ? 'Suspend User' : 'Activate User'}
         description={suspendTarget?.status === 'active' ? `Suspend ${suspendTarget?.name}? They will lose access immediately.` : `Reactivate ${suspendTarget?.name}? They will regain access.`}
         confirmLabel={suspendTarget?.status === 'active' ? 'Suspend' : 'Activate'}
@@ -212,7 +232,7 @@ export function UsersPage(): ReactElement {
       <ConfirmDialog
         isOpen={!!resetUserId}
         onClose={() => setResetUserId(null)}
-        onConfirm={handleResetPassword}
+        onConfirm={() => void handleResetPassword()}
         title="Reset Password"
         description="Send a password reset email to this user?"
         confirmLabel="Send Reset Email"

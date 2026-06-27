@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Notification } from '../../../types/index';
-import { NOTIFICATIONS } from '../../../mocks/notifications';
-import { useAuthStore } from '../../../store/authStore';
+import { notificationsApi } from '../../../api/notifications';
 import { NotificationItem } from './NotificationItem';
 import styles from './NotificationDropdown.module.css';
 
@@ -12,25 +11,36 @@ interface NotificationDropdownProps {
 }
 
 export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownProps) {
-  const currentUser = useAuthStore((s) => s.currentUser);
   const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const [notifications, setNotifications] = useState<Notification[]>(() =>
-    NOTIFICATIONS.filter((n) => n.userId === currentUser?.id)
-  );
+  useEffect(() => {
+    if (!isOpen) return;
+    notificationsApi.list({ limit: 10 }).then((res) => {
+      setNotifications(res.data);
+    }).catch(() => { /* silent */ });
+  }, [isOpen]);
 
-  if (!isOpen || !currentUser) return null;
+  if (!isOpen) return null;
 
   const recent = notifications.slice(0, 10);
 
-  function handleMarkAll() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  async function handleMarkAll() {
+    try {
+      await notificationsApi.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch { /* silent */ }
   }
 
-  function handleClick(notif: Notification) {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-    );
+  async function handleClick(notif: Notification) {
+    if (!notif.isRead) {
+      try {
+        await notificationsApi.markRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
+        );
+      } catch { /* silent */ }
+    }
     if (notif.ticketId) {
       navigate(`/tickets/${notif.ticketId}`);
     }

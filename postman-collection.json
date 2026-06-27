@@ -1,0 +1,919 @@
+{
+  "info": {
+    "_postman_id": "flowdesk-api-v1",
+    "name": "FlowDesk API",
+    "description": "FlowDesk task management system — NestJS backend REST API (base: {{baseUrl}})\n\nAuthentication: All endpoints require a Bearer token from Keycloak except those marked @Public.\nSet {{accessToken}} after login via Keycloak. The refresh/logout endpoints accept {{refreshToken}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api/v1", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "departmentId", "value": "", "type": "string" },
+    { "key": "ticketId", "value": "", "type": "string" },
+    { "key": "commentId", "value": "", "type": "string" },
+    { "key": "shiftId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "paymentId", "value": "", "type": "string" },
+    { "key": "fileId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const { accessToken, refreshToken } = json?.data ?? {};",
+                  "if (accessToken) pm.environment.set('accessToken', accessToken);",
+                  "if (refreshToken) pm.environment.set('refreshToken', refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"seinde4@gmail.com\",\n  \"password\": \"Password123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "@Public — Authenticate with email and password via Keycloak ROPC grant. Returns accessToken + refreshToken. The post-response script auto-saves both tokens to environment variables."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const { accessToken, refreshToken } = json?.data ?? {};",
+                  "if (accessToken) pm.environment.set('accessToken', accessToken);",
+                  "if (refreshToken) pm.environment.set('refreshToken', refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] },
+            "description": "@Public — Exchange a Keycloak refresh token for a new access token. Post-response script auto-saves new tokens."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] },
+            "description": "@Public — Revoke the refresh token. Returns 204 No Content."
+          }
+        },
+        {
+          "name": "Get Current User (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] },
+            "description": "Returns the authenticated user's profile. Also auto-creates the user row in the DB on first call after login. Updates lastLogin and isOnline."
+          }
+        },
+        {
+          "name": "Forgot Password (Send OTP)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amaka@flowdesk.io\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth", "forgot-password"] },
+            "description": "@Public — Sends a 6-digit OTP to the user's email. OTP is stored in Redis with a 10-minute TTL. Always returns success to prevent email enumeration. Check your email for the code, then call Reset Password."
+          }
+        },
+        {
+          "name": "Reset Password (Validate OTP)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amaka@flowdesk.io\",\n  \"otp\": \"482910\",\n  \"newPassword\": \"MyNewPassword123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth", "reset-password"] },
+            "description": "@Public — Validates the OTP from Redis and sets a new permanent password via Keycloak admin API. OTP is deleted immediately after successful validation. Returns 400 if OTP is expired, never issued, or incorrect."
+          }
+        },
+        {
+          "name": "Set Permanent Password (First Login)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"MyPermanentPassword123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/set-password", "host": ["{{baseUrl}}"], "path": ["auth", "set-password"] },
+            "description": "Requires Bearer token — For users on their first login (isFirstLogin = true). Sets a permanent password in Keycloak, removes the UPDATE_PASSWORD required action, and marks isFirstLogin = false in the DB. Call this after the user logs in with their temporary password."
+          }
+        },
+        {
+          "name": "Complete First Login",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/first-login-complete", "host": ["{{baseUrl}}"], "path": ["auth", "first-login-complete"] },
+            "description": "Marks isFirstLogin = false without changing the password. Use Set Permanent Password instead if you also need to change the password."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "search", "value": "", "description": "Search by name or email", "disabled": true },
+                { "key": "departmentId", "value": "", "description": "Filter by department UUID", "disabled": true },
+                { "key": "role", "value": "team_member", "description": "root_admin | dept_head | team_member", "disabled": true },
+                { "key": "status", "value": "active", "description": "active | suspended", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "25" }
+              ]
+            },
+            "description": "Roles: root_admin, dept_head. dept_head sees only their own department."
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] },
+            "description": "Roles: root_admin, dept_head. Returns user + recent tickets."
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chidi Okeke\",\n  \"email\": \"chidi@flowdesk.io\",\n  \"role\": \"team_member\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"temporaryPassword\": \"Temp@1234\",\n  \"notificationPrefs\": {\n    \"email\": true,\n    \"teams\": false,\n    \"whatsapp\": false,\n    \"sms\": false\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] },
+            "description": "Roles: root_admin. Creates Keycloak user and sends welcome email."
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chidi Okeke Jr.\",\n  \"status\": \"active\",\n  \"role\": \"dept_head\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"avatarColor\": \"#10b981\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"notificationPrefs\": {\n    \"email\": true,\n    \"whatsapp\": true\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] },
+            "description": "Non-admin users can only update non-sensitive fields on themselves."
+          }
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] },
+            "description": "Roles: root_admin. Soft-deletes by setting status=suspended and disabling in Keycloak. Returns 204."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temporaryPassword\": \"NewTemp@5678\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}/reset-password", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}", "reset-password"] },
+            "description": "Roles: root_admin. Forces user to change password on next login."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Departments",
+      "item": [
+        {
+          "name": "List Departments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/departments", "host": ["{{baseUrl}}"], "path": ["departments"] },
+            "description": "Roles: root_admin, dept_head. dept_head sees only their own department."
+          }
+        },
+        {
+          "name": "Get Department",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}"] },
+            "description": "Roles: root_admin, dept_head. Returns department with full member list."
+          }
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Customer Support\",\n  \"slug\": \"customer-support\",\n  \"description\": \"Handles all customer-facing support tickets\",\n  \"headId\": \"{{userId}}\",\n  \"routing\": \"roster_based\",\n  \"sla\": {\n    \"responseTimeMs\": 1800000,\n    \"resolutionTimeMs\": 28800000\n  },\n  \"teamsWebhook\": \"https://outlook.office.com/webhook/...\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/departments", "host": ["{{baseUrl}}"], "path": ["departments"] },
+            "description": "Roles: root_admin. routing: roster_based | all_notify. SLA times in milliseconds."
+          }
+        },
+        {
+          "name": "Update Department",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Customer Support - Updated\",\n  \"routing\": \"all_notify\",\n  \"sla\": {\n    \"responseTimeMs\": 900000,\n    \"resolutionTimeMs\": 14400000\n  },\n  \"teamsWebhook\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}"] },
+            "description": "Roles: root_admin. All fields optional."
+          }
+        },
+        {
+          "name": "Delete Department",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}"] },
+            "description": "Roles: root_admin. Fails with 409 if department has active tickets. Returns 204."
+          }
+        },
+        {
+          "name": "Add Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}/members", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}", "members"] },
+            "description": "Roles: root_admin. Also updates user.departmentId."
+          }
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}/members/{{userId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}", "members", "{{userId}}"] },
+            "description": "Roles: root_admin. Clears user.departmentId. Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "List Tickets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tickets?page=1&limit=25&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["tickets"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "25" },
+                { "key": "sortBy", "value": "createdAt", "description": "createdAt | updatedAt | priority | status" },
+                { "key": "sortOrder", "value": "desc", "description": "asc | desc" },
+                { "key": "statuses", "value": "open,in_progress", "description": "Comma-separated ticket statuses", "disabled": true },
+                { "key": "priorities", "value": "high,critical", "description": "Comma-separated priorities", "disabled": true },
+                { "key": "departmentIds", "value": "", "description": "Comma-separated department UUIDs", "disabled": true },
+                { "key": "assigneeId", "value": "", "disabled": true },
+                { "key": "requestorId", "value": "", "disabled": true },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "tags", "value": "", "disabled": true },
+                { "key": "dateFrom", "value": "", "description": "ISO date string", "disabled": true },
+                { "key": "dateTo", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Scoped by role: root_admin sees all; dept_head sees their dept; team_member sees own tickets."
+          }
+        },
+        {
+          "name": "Get Ticket",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}"] },
+            "description": "Full ticket detail: comments, attachments, transfer history, linked tickets."
+          }
+        },
+        {
+          "name": "Create Ticket",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Login page not loading", "type": "text" },
+                { "key": "description", "value": "Users are unable to access the login page since the last deployment.", "type": "text" },
+                { "key": "priority", "value": "high", "type": "text", "description": "low | medium | high | critical" },
+                { "key": "departmentId", "value": "{{departmentId}}", "type": "text" },
+                { "key": "tags[0]", "value": "bug", "type": "text" },
+                { "key": "tags[1]", "value": "urgent", "type": "text" },
+                { "key": "linkedTicketIds[0]", "value": "", "type": "text", "disabled": true },
+                { "key": "files[]", "src": [], "type": "file", "disabled": true }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/tickets", "host": ["{{baseUrl}}"], "path": ["tickets"] },
+            "description": "Multipart/form-data. Files optional. Auto-assigns if dept routing=roster_based and a shift is active."
+          }
+        },
+        {
+          "name": "Update Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Login page not loading — critical\",\n  \"description\": \"Updated description with steps to reproduce.\",\n  \"priority\": \"critical\",\n  \"tags\": [\"bug\", \"critical\", \"auth\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}"] },
+            "description": "All fields optional. Scoped by role."
+          }
+        },
+        {
+          "name": "Assign Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigneeId\": \"{{userId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/assign", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "assign"] },
+            "description": "team_member can only self-assign open unassigned tickets. Triggers notification."
+          }
+        },
+        {
+          "name": "Transfer Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toDepartmentId\": \"{{departmentId}}\",\n  \"note\": \"This ticket belongs to the HR department.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/transfer", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "transfer"] },
+            "description": "Resets SLA deadlines for the target department. Records transfer history."
+          }
+        },
+        {
+          "name": "Escalate Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Customer is threatening to churn. Needs immediate attention.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/escalate", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "escalate"] },
+            "description": "Sets status=escalated, priority=critical. Notifies all root_admin users."
+          }
+        },
+        {
+          "name": "Resolve Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolutionNote\": \"Issue was caused by a misconfigured environment variable. Rolled back and redeployed.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/resolve", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "resolve"] },
+            "description": "Sets status=resolved. Cancels SLA jobs. Notifies requestor."
+          }
+        },
+        {
+          "name": "Close Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/close", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "close"] },
+            "description": "Sets status=closed. root_admin or dept_head of the ticket's department."
+          }
+        },
+        {
+          "name": "Add Comment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "content", "value": "I've replicated the issue on staging. Working on a fix now.", "type": "text" },
+                { "key": "replyToId", "value": "", "type": "text", "disabled": true },
+                { "key": "files[]", "src": [], "type": "file", "disabled": true }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/comments", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "comments"] },
+            "description": "Multipart/form-data. Files optional. Notifies assignee and requestor."
+          }
+        },
+        {
+          "name": "Edit Comment",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated: Fix deployed to staging, awaiting QA sign-off.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "comments", "{{commentId}}"] },
+            "description": "Only the comment author can edit."
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "comments", "{{commentId}}"] },
+            "description": "Author or root_admin. Also deletes associated attachments. Returns 204."
+          }
+        },
+        {
+          "name": "Toggle Reaction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emoji\": \"👍\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tickets/{{ticketId}}/comments/{{commentId}}/reactions", "host": ["{{baseUrl}}"], "path": ["tickets", "{{ticketId}}", "comments", "{{commentId}}", "reactions"] },
+            "description": "Toggles an emoji reaction. Returns updated reactions array."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roster",
+      "item": [
+        {
+          "name": "List Shifts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roster",
+              "host": ["{{baseUrl}}"],
+              "path": ["roster"],
+              "query": [
+                { "key": "departmentId", "value": "{{departmentId}}", "disabled": true },
+                { "key": "userId", "value": "", "disabled": true },
+                { "key": "dateFrom", "value": "2026-06-01", "disabled": true },
+                { "key": "dateTo", "value": "2026-06-30", "disabled": true }
+              ]
+            },
+            "description": "Defaults to current calendar month. Scoped: team_member sees only own shifts."
+          }
+        },
+        {
+          "name": "Create Shift",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"date\": \"2026-07-01\",\n  \"startTime\": \"08:00\",\n  \"endTime\": \"16:00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/roster", "host": ["{{baseUrl}}"], "path": ["roster"] },
+            "description": "Roles: root_admin, dept_head. Notifies the assigned user."
+          }
+        },
+        {
+          "name": "Update Shift",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startTime\": \"09:00\",\n  \"endTime\": \"17:00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/roster/{{shiftId}}", "host": ["{{baseUrl}}"], "path": ["roster", "{{shiftId}}"] },
+            "description": "Roles: root_admin, dept_head (own dept only)."
+          }
+        },
+        {
+          "name": "Delete Shift",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/roster/{{shiftId}}", "host": ["{{baseUrl}}"], "path": ["roster", "{{shiftId}}"] },
+            "description": "Roles: root_admin, dept_head (own dept only). Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "25" },
+                { "key": "type", "value": "", "description": "ticket_assigned | ticket_resolved | ticket_transferred | ticket_escalated | new_comment | sla_warning", "disabled": true },
+                { "key": "isRead", "value": "false", "description": "true | false", "disabled": true }
+              ]
+            },
+            "description": "Returns notifications for the authenticated user."
+          }
+        },
+        {
+          "name": "Mark All Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/read-all", "host": ["{{baseUrl}}"], "path": ["notifications", "read-all"] }
+          }
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}/read", "host": ["{{baseUrl}}"], "path": ["notifications", "{{notificationId}}", "read"] }
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}", "host": ["{{baseUrl}}"], "path": ["notifications", "{{notificationId}}"] },
+            "description": "Returns 204."
+          }
+        },
+        {
+          "name": "SSE Stream (subscribe)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "text/event-stream" }],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/stream?access_token={{accessToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "stream"],
+              "query": [{ "key": "access_token", "value": "{{accessToken}}" }]
+            },
+            "description": "Server-Sent Events stream. Pass JWT as query param (keycloak-connect BearerStore). Events: 'notification' (data: JSON), 'ping' (keepalive every 30s)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Paystack Webhook",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-paystack-signature", "value": "sha512_hash_here" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"reference\": \"pay_abc123\",\n    \"amount\": 500000,\n    \"currency\": \"NGN\",\n    \"metadata\": { \"paymentId\": \"{{paymentId}}\" }\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/payments/paystack/webhook", "host": ["{{baseUrl}}"], "path": ["payments", "paystack", "webhook"] },
+            "description": "@Public — Receives Paystack events. Validates HMAC signature."
+          }
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments?page=1&limit=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "25" },
+                { "key": "ticketId", "value": "", "disabled": true },
+                { "key": "status", "value": "", "description": "pending | completed | failed", "disabled": true }
+              ]
+            },
+            "description": "Roles: root_admin, dept_head."
+          }
+        },
+        {
+          "name": "Get Payment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/payments/{{paymentId}}", "host": ["{{baseUrl}}"], "path": ["payments", "{{paymentId}}"] },
+            "description": "Roles: root_admin, dept_head."
+          }
+        },
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketId\": \"{{ticketId}}\",\n  \"amount\": 250000,\n  \"currency\": \"NGN\",\n  \"method\": \"paystack\",\n  \"description\": \"Hardware replacement for laptop\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/payments", "host": ["{{baseUrl}}"], "path": ["payments"] },
+            "description": "Roles: root_admin, dept_head. method: bank_transfer | paystack | cash."
+          }
+        },
+        {
+          "name": "Complete Payment",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/payments/{{paymentId}}/complete", "host": ["{{baseUrl}}"], "path": ["payments", "{{paymentId}}", "complete"] },
+            "description": "Roles: root_admin, dept_head."
+          }
+        },
+        {
+          "name": "Fail Payment",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/payments/{{paymentId}}/fail", "host": ["{{baseUrl}}"], "path": ["payments", "{{paymentId}}", "fail"] },
+            "description": "Roles: root_admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Get Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics"],
+              "query": [
+                { "key": "dateFrom", "value": "2026-06-01", "disabled": true },
+                { "key": "dateTo", "value": "2026-06-30", "disabled": true },
+                { "key": "departmentId", "value": "", "description": "Ignored for dept_head (uses their own dept)", "disabled": true }
+              ]
+            },
+            "description": "Roles: root_admin, dept_head. dept_head automatically scoped to their department."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/settings", "host": ["{{baseUrl}}"], "path": ["settings"] },
+            "description": "Roles: root_admin."
+          }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orgName\": \"FlowDesk Inc.\",\n  \"paystackPublicKey\": \"pk_live_...\",\n  \"paystackSecretKey\": \"sk_live_...\",\n  \"notifChannels\": {\n    \"email\": true,\n    \"teams\": true,\n    \"sms\": false,\n    \"whatsapp\": false\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/settings", "host": ["{{baseUrl}}"], "path": ["settings"] },
+            "description": "Roles: root_admin. All fields optional."
+          }
+        },
+        {
+          "name": "Upload Logo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "src": [], "type": "file" }]
+            },
+            "url": { "raw": "{{baseUrl}}/settings/logo", "host": ["{{baseUrl}}"], "path": ["settings", "logo"] },
+            "description": "Roles: root_admin. Uploads org logo to Cloudinary. Returns Cloudinary URL."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "src": [], "type": "file" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/upload?context=ticket&ticketId={{ticketId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "upload"],
+              "query": [
+                { "key": "context", "value": "ticket", "description": "ticket | comment | logo | chat" },
+                { "key": "ticketId", "value": "{{ticketId}}", "disabled": true },
+                { "key": "commentId", "value": "{{commentId}}", "disabled": true }
+              ]
+            },
+            "description": "Uploads to Cloudinary. Returns attachment record with Cloudinary URL."
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/files/{{fileId}}", "host": ["{{baseUrl}}"], "path": ["files", "{{fileId}}"] },
+            "description": "Owner or root_admin. Deletes from Cloudinary and DB. Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Get Stream.io Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/chat/token", "host": ["{{baseUrl}}"], "path": ["chat", "token"] },
+            "description": "Returns a Stream.io user token for initialising the client SDK."
+          }
+        },
+        {
+          "name": "Provision User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/chat/provision-user", "host": ["{{baseUrl}}"], "path": ["chat", "provision-user"] },
+            "description": "Creates/updates the authenticated user in Stream.io."
+          }
+        },
+        {
+          "name": "Create Channel",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"group\",\n  \"memberIds\": [\"{{userId}}\"],\n  \"name\": \"Tech Support Channel\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/chat/channels", "host": ["{{baseUrl}}"], "path": ["chat", "channels"] },
+            "description": "type: dm | group. name is optional for dm. Returns Stream.io channel object."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/profile", "host": ["{{baseUrl}}"], "path": ["profile"] },
+            "description": "Returns the authenticated user's own profile."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chidi Okeke\",\n  \"avatarColor\": \"#0ea5e9\",\n  \"phoneNumber\": \"+2348012345678\",\n  \"notificationPrefs\": {\n    \"email\": true,\n    \"whatsapp\": true,\n    \"sms\": false,\n    \"teams\": false\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/profile", "host": ["{{baseUrl}}"], "path": ["profile"] },
+            "description": "Updates name, avatar, phone, notification preferences for the authenticated user."
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"OldPass@123\",\n  \"newPassword\": \"NewPass@456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/profile/password", "host": ["{{baseUrl}}"], "path": ["profile", "password"] },
+            "description": "Verifies current password via Keycloak before updating. newPassword min 8 chars."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { MessageSquare, Users } from 'lucide-react';
+import { MessageSquare, Users, Wifi, WifiOff } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useAuthStore } from '../../../store/authStore';
-import { getUserById, USERS } from '../../../mocks/users';
+import { chatApi } from '../../../api/chat';
+import type { ChatToken } from '../../../api/chat';
 import { Avatar } from '../../../components/ui/index';
 import { useChat } from '../hooks/useChat';
 import { ConversationList } from './ConversationList';
@@ -24,6 +25,19 @@ export function ChatPage() {
   const { conversations, activeConversation, setActiveConversation, sendMessage } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Stream.io connection state
+  const [chatToken, setChatToken] = useState<ChatToken | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+
+  useEffect(() => {
+    chatApi.getToken().then((token) => {
+      setChatToken(token);
+      setConnectionStatus('connected');
+    }).catch(() => {
+      setConnectionStatus('error');
+    });
+  }, []);
+
   useEffect(() => {
     if (conversationId) setActiveConversation(conversationId);
   }, [conversationId, setActiveConversation]);
@@ -37,10 +51,8 @@ export function ChatPage() {
   function getConvName() {
     if (!activeConversation) return '';
     if (activeConversation.type === 'group') return activeConversation.name ?? 'Group';
-    const other = USERS.find(
-      (u) => activeConversation.participantIds.includes(u.id) && u.id !== currentUser!.id
-    );
-    return other?.name ?? 'Unknown';
+    const otherId = activeConversation.participantIds.find((id) => id !== currentUser!.id);
+    return otherId ?? 'Unknown';
   }
 
   function getConvSub() {
@@ -48,10 +60,7 @@ export function ChatPage() {
     if (activeConversation.type === 'group') {
       return `${activeConversation.participantIds.length} members`;
     }
-    const other = USERS.find(
-      (u) => activeConversation.participantIds.includes(u.id) && u.id !== currentUser!.id
-    );
-    return other?.isOnline ? 'Online' : 'Offline';
+    return 'Direct Message';
   }
 
   // Group messages by date
@@ -65,9 +74,30 @@ export function ChatPage() {
     }
   }
 
-  const dmOther = activeConversation?.type === 'dm'
-    ? USERS.find((u) => activeConversation.participantIds.includes(u.id) && u.id !== currentUser.id)
+  const dmOtherId = activeConversation?.type === 'dm'
+    ? activeConversation.participantIds.find((id) => id !== currentUser.id)
     : null;
+
+  // Build minimal User stub for display (no users-by-id API available for chat)
+  function makeUserStub(id: string) {
+    return {
+      id,
+      name: id,
+      email: '',
+      role: 'team_member' as const,
+      departmentId: null,
+      status: 'active' as const,
+      avatarInitials: id.slice(0, 2).toUpperCase(),
+      avatarColor: '#4F6EF7',
+      joinDate: '',
+      lastLogin: null,
+      isOnline: false,
+      isFirstLogin: false,
+      notificationPrefs: { email: true, teams: false, whatsapp: false },
+    };
+  }
+
+  const dmOtherStub = dmOtherId ? makeUserStub(dmOtherId) : null;
 
   return (
     <div className={styles.page}>
@@ -78,11 +108,31 @@ export function ChatPage() {
       />
 
       <div className={styles.main}>
+        {/* Stream.io connection status banner */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 12px',
+          fontSize: 'var(--font-size-xs)',
+          color: connectionStatus === 'connected' ? 'var(--color-success)' : connectionStatus === 'error' ? 'var(--color-error)' : 'var(--color-text-secondary)',
+          background: 'var(--color-bg-subtle)',
+          borderBottom: '1px solid var(--color-border-default)',
+        }}>
+          {connectionStatus === 'connected' ? (
+            <><Wifi size={12} /> Chat powered by Stream.io — connected{chatToken ? ` (key: ${chatToken.apiKey.slice(0, 8)}…)` : ''}</>
+          ) : connectionStatus === 'error' ? (
+            <><WifiOff size={12} /> Stream.io connection unavailable</>
+          ) : (
+            <><Wifi size={12} /> Connecting to Stream.io…</>
+          )}
+        </div>
+
         {activeConversation ? (
           <>
             <div className={styles.topBar}>
-              {activeConversation.type === 'dm' && dmOther ? (
-                <Avatar initials={dmOther.avatarInitials} color={dmOther.avatarColor} size="sm" online={dmOther.isOnline} name={dmOther.name} />
+              {activeConversation.type === 'dm' && dmOtherStub ? (
+                <Avatar initials={dmOtherStub.avatarInitials} color={dmOtherStub.avatarColor} size="sm" name={dmOtherStub.name} />
               ) : (
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Users size={18} color="var(--color-text-secondary)" />
@@ -101,13 +151,18 @@ export function ChatPage() {
                     <span className={styles.dateSeparatorText}>{formatDateSeparator(date)}</span>
                   </div>
                   {msgs.map((msg, idx) => {
-                    const sender = getUserById(msg.senderId);
-                    if (!sender) return null;
+                    const senderStub = makeUserStub(msg.senderId);
                     const isOwn = msg.senderId === currentUser.id;
                     const prevMsg = idx > 0 ? msgs[idx - 1] : null;
                     const showAvatar = !isOwn && prevMsg?.senderId !== msg.senderId;
                     return (
-                      <MessageBubble key={msg.id} message={msg} isOwn={isOwn} sender={sender} showAvatar={showAvatar} />
+                      <MessageBubble
+                        key={msg.id}
+                        message={msg}
+                        isOwn={isOwn}
+                        sender={senderStub}
+                        showAvatar={showAvatar}
+                      />
                     );
                   })}
                 </div>

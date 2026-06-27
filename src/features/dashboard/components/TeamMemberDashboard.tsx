@@ -1,18 +1,19 @@
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, format, addDays, isToday } from 'date-fns';
 import { Ticket, Plus, Calendar, Bell, Inbox, AlertCircle, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
-import { TICKETS } from '../../../mocks/tickets';
-import { ROSTER } from '../../../mocks/roster';
-import { NOTIFICATIONS } from '../../../mocks/notifications';
+import { ticketsApi } from '../../../api/tickets';
+import { rosterApi } from '../../../api/roster';
+import { notificationsApi } from '../../../api/notifications';
 import { Badge, getStatusVariant, getPriorityVariant } from '../../../components/ui/index';
 import { Button } from '../../../components/ui/index';
 import { Avatar } from '../../../components/ui/index';
 import { PageWrapper } from '../../../components/layout/PageWrapper';
-import type { Notification } from '../../../types/index';
+import type { Ticket as TicketType, Shift, Notification } from '../../../types/index';
 import styles from './TeamMemberDashboard.module.css';
 
-const TODAY = new Date('2026-06-26');
+const TODAY = new Date();
 const WEEK_END = addDays(TODAY, 7);
 
 const PRIORITY_BAR: Record<string, string> = {
@@ -37,22 +38,51 @@ function notifIconClass(type: Notification['type']): string {
 export function TeamMemberDashboard() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
+
+  const [allTickets, setAllTickets] = useState<TicketType[]>([]);
+  const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
+  const [recentNotifs, setRecentNotifs] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const currentYearMonth = TODAY.toISOString().slice(0, 7);
+
+  useEffect(() => {
+    Promise.all([
+      ticketsApi.list({ page: 1, limit: 25 }),
+      rosterApi.list({ month: currentYearMonth }),
+      notificationsApi.list({ limit: 5 }),
+    ]).then(([ticketsRes, shiftsRes, notifsRes]) => {
+      setAllTickets(ticketsRes.data);
+      const userId = currentUser?.id;
+      const shifts = shiftsRes
+        .filter((s) => {
+          const d = new Date(s.date);
+          return s.userId === userId && d >= TODAY && d <= WEEK_END;
+        })
+        .sort((a, b) => a.date.localeCompare(b.date));
+      setUpcomingShifts(shifts);
+      setRecentNotifs(notifsRes.data.slice(0, 4));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [currentUser?.id]);
+
   if (!currentUser) return null;
 
   const firstName = currentUser.name.split(' ')[0];
 
-  const myOpenTickets = TICKETS.filter(
+  const myOpenTickets = allTickets.filter(
     (t) => t.assigneeId === currentUser.id && t.status !== 'resolved' && t.status !== 'closed'
   );
-  const myCreatedTickets = TICKETS.filter((t) => t.requestorId === currentUser.id);
-  const upcomingShifts = ROSTER.filter((s) => {
-    const d = new Date(s.date);
-    return s.userId === currentUser.id && d >= TODAY && d <= WEEK_END;
-  }).sort((a, b) => a.date.localeCompare(b.date));
-  const recentNotifs = NOTIFICATIONS.filter((n) => n.userId === currentUser.id)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 4);
+  const myCreatedTickets = allTickets.filter((t) => t.requestorId === currentUser.id);
   const unreadCount = recentNotifs.filter((n) => !n.isRead).length;
+
+  if (loading) {
+    return (
+      <PageWrapper title="My Dashboard" subtitle="">
+        <p style={{ color: 'var(--color-text-secondary)', padding: '2rem' }}>Loading…</p>
+      </PageWrapper>
+    );
+  }
 
   return (
     <PageWrapper title="My Dashboard" subtitle="">
