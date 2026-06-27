@@ -11,9 +11,9 @@ import type { UserRole } from '../../../types/index';
 import styles from './LoginPage.module.css';
 
 const DEMO_ROLES: { label: string; role: UserRole }[] = [
-  { label: 'Login as Root Admin', role: 'root_admin' },
-  { label: 'Login as Dept Head', role: 'dept_head' },
-  { label: 'Login as Team Member', role: 'team_member' },
+  { label: 'Root Admin', role: 'root_admin' },
+  { label: 'Dept Head', role: 'dept_head' },
+  { label: 'Team Member', role: 'team_member' },
 ];
 
 export function LoginPage() {
