@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import logo from '../../../assets/logo.png';
 import { useAuthStore } from '../../../store/authStore';
 import { USERS } from '../../../mocks/users';
 import { loginSchema } from '../schemas';
@@ -54,10 +55,7 @@ export function LoginPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.logo}>
-          <div className={styles.logoIcon}>
-            <Zap size={20} />
-          </div>
-          <span className={styles.logoName}>FlowDesk</span>
+          <img src={logo} alt="Betnaija" style={{ height: 48, objectFit: 'contain' }} />
         </div>
 
         <h1 className={styles.heading}>Welcome back</h1>

@@ -58,32 +58,17 @@
   overflow: hidden;
 }
 
-.logoIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background-color: var(--color-primary);
-  color: var(--color-primary-text);
+.logoImg {
+  height: 46px;
+  width: auto;
+  object-fit: contain;
   flex-shrink: 0;
-}
-
-.logoText {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  letter-spacing: var(--letter-spacing-tight);
   opacity: 1;
-  transition: opacity var(--transition-sidebar);
+  transition: opacity var(--transition-sidebar), width var(--transition-sidebar);
 }
 
-.collapsed .logoText {
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
+.collapsed .logoImg {
+  height: 28px;
 }
 
 /* ── Toggle button ── */

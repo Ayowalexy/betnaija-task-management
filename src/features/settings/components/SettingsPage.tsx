@@ -103,7 +103,7 @@ function MaskedInput({ label, placeholder }: { label: string; placeholder?: stri
 export function SettingsPage(): ReactElement {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('general');
-  const [orgName, setOrgName] = useState('FlowDesk Corp');
+  const [orgName, setOrgName] = useState('Betnaija');
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifTeams, setNotifTeams] = useState(true);
   const [notifWhatsapp, setNotifWhatsapp] = useState(false);

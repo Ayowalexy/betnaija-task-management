@@ -22,6 +22,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
 import { NOTIFICATIONS } from '../../mocks/notifications';
 import { CONVERSATIONS } from '../../mocks/chat';
+import logo from '../../assets/logo.png';
 import styles from './Sidebar.module.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -34,19 +35,6 @@ interface NavEntry {
 }
 
 type NavStructure = Array<NavEntry | 'divider'>;
-
-// ── Logo SVG ──────────────────────────────────────────────────────────────
-
-function FlowDeskLogo(): ReactElement {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="7" height="7" rx="2" fill="currentColor" />
-      <rect x="10" y="1" width="7" height="7" rx="2" fill="currentColor" opacity="0.6" />
-      <rect x="1" y="10" width="7" height="7" rx="2" fill="currentColor" opacity="0.6" />
-      <rect x="10" y="10" width="7" height="7" rx="2" fill="currentColor" opacity="0.35" />
-    </svg>
-  );
-}
 
 // ── Role label ─────────────────────────────────────────────────────────────
 
@@ -157,10 +145,7 @@ export function Sidebar(): ReactElement {
       >
         {/* Logo */}
         <div className={styles.logoArea}>
-          <div className={styles.logoIcon}>
-            <FlowDeskLogo />
-          </div>
-          <span className={styles.logoText}>FlowDesk</span>
+          <img src={logo} alt="Betnaija" className={styles.logoImg} />
         </div>
 
         {/* Collapse toggle */}

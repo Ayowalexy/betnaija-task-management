@@ -70,7 +70,7 @@ export function AnalyticsPage(): ReactElement {
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
-        <head><title>FlowDesk Analytics Report</title>
+        <head><title>Betnaija Analytics Report</title>
           <style>${cssStyles}</style>
         </head>
         <body style="margin:0;padding:24px;background:#f8f9fc">${content.innerHTML}</body>
