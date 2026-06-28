@@ -25,15 +25,14 @@ export function TicketListPage(): ReactElement {
     setLoading(true);
     setError(null);
 
-    // Build role-scoped filter additions
-    const extraFilters: Record<string, string> = {};
+    const apiFilters: Parameters<typeof ticketsApi.list>[0] = { ...filters };
     if (!isAdmin && isDeptHead && currentUser?.departmentId) {
-      extraFilters.departmentId = currentUser.departmentId;
+      apiFilters.departmentIds = [currentUser.departmentId];
     } else if (!isAdmin && !isDeptHead && currentUser?.id) {
-      extraFilters.assigneeId = currentUser.id;
+      apiFilters.assigneeId = currentUser.id;
     }
 
-    ticketsApi.list({ ...filters, ...extraFilters })
+    ticketsApi.list(apiFilters)
       .then((res) => {
         if (!cancelled) {
           setTickets(res.data);
@@ -59,6 +58,7 @@ export function TicketListPage(): ReactElement {
       loading={loading}
       error={error}
       showDepartmentFilter={isAdmin}
+      showDepartmentColumn={isAdmin}
       showAssigneeFilter={isAdmin || isDeptHead}
     />
   );

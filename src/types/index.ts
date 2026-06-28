@@ -71,13 +71,14 @@ export interface SLAConfig {
 export interface Department {
   id: string;
   name: string;
-  headId: string; // user id
+  slug: string;
+  headId?: string | null;
   memberIds: string[];
   routing: RoutingType;
   sla: SLAConfig;
   activeTicketCount: number;
-  teamsWebhook: string;
-  description: string;
+  teamsWebhook?: string | null;
+  description?: string | null;
 }
 
 export interface Comment {
@@ -190,6 +191,13 @@ export interface Notification {
   isRead: boolean;
 }
 
+export interface AnalyticsSummary {
+  totalTickets: number;
+  resolvedThisMonth: number;
+  slaComplianceRate: number;
+  avgResolutionHours: number;
+}
+
 export interface AnalyticsData {
   monthlyVolume: MonthlyVolume[];
   slaCompliance: SLACompliance[];
@@ -198,6 +206,7 @@ export interface AnalyticsData {
   avgResolutionTime: DeptResolutionTime[];
   topRequestors: TopRequestor[];
   recentBreaches: SLABreach[];
+  summary?: AnalyticsSummary;
 }
 
 export interface MonthlyVolume {

@@ -73,8 +73,8 @@ interface SLAInfoBannerProps {
 
 function SLAInfoBanner({ dept }: SLAInfoBannerProps) {
   if (!dept) return null;
-  const slaResponseMs = (dept as Department & { slaResponseMs?: number }).slaResponseMs ?? 0;
-  const slaResolutionMs = (dept as Department & { slaResolutionMs?: number }).slaResolutionMs ?? 0;
+  const slaResponseMs = Number(dept.sla?.responseTimeMs ?? 0);
+  const slaResolutionMs = Number(dept.sla?.resolutionTimeMs ?? 0);
   return (
     <div className={styles.slaBanner}>
       <span className={styles.slaBannerTitle}>SLA for {dept.name}</span>

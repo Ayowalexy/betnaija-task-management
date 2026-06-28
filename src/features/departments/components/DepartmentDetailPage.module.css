@@ -227,6 +227,203 @@
   background: var(--color-error-bg);
 }
 
+/* ── Overview stat grid ──────────────────────── */
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-4);
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.statValue {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.descText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* ── Settings edit form ──────────────────────── */
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 600px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fieldLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.slaSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Choice cards (routing) ──────────────────── */
+
+.choiceGroup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 600px) {
+  .choiceGroup {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choiceInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.choiceCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 2px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base);
+  position: relative;
+  user-select: none;
+}
+
+.choiceCard:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-subtle);
+}
+
+.choiceCard.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-subtle);
+}
+
+.choiceIconWrap {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.choiceCard.selected .choiceIconWrap {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.choiceTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.choiceHint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-normal);
+}
+
+.choiceCard.selected .choiceHint {
+  color: var(--color-text-secondary);
+}
+
+.choiceCheck {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-border-strong);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+
+.choiceCard.selected .choiceCheck {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.choiceCheckInner {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: #fff;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.choiceCard.selected .choiceCheckInner {
+  opacity: 1;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+}
+
 /* ── Danger zone ─────────────────────────────── */
 
 .dangerZone {

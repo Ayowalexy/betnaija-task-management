@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RotateCcw, BellRing } from 'lucide-react';
 import { Modal } from '../../../components/ui/index.js';
@@ -62,11 +62,13 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
     handleSubmit,
     reset,
     control,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateDepartmentFormData>({
     resolver: zodResolver(createDepartmentSchema),
     defaultValues: {
       name: '',
+      slug: '',
       description: '',
       headId: '',
       routing: 'roster_based',
@@ -75,6 +77,17 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
       teamsWebhook: '',
     },
   });
+
+  const nameValue = useWatch({ control, name: 'name' });
+  useEffect(() => {
+    const generated = nameValue
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+    setValue('slug', generated, { shouldValidate: false });
+  }, [nameValue, setValue]);
 
   function handleClose(): void {
     reset();
@@ -85,11 +98,14 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
     try {
       await departmentsApi.create({
         name: data.name,
+        slug: data.slug,
         description: data.description,
-        headId: data.headId,
+        headId: data.headId || undefined,
         routing: data.routing,
-        slaResponseMs: data.responseTimeHours * 60 * 60 * 1000,
-        slaResolutionMs: data.resolutionTimeHours * 60 * 60 * 1000,
+        sla: {
+          responseTimeMs: data.responseTimeHours * 60 * 60 * 1000,
+          resolutionTimeMs: data.resolutionTimeHours * 60 * 60 * 1000,
+        },
         teamsWebhook: data.teamsWebhook || undefined,
       });
       addToast({ type: 'success', message: 'Department created successfully' });
@@ -134,6 +150,14 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
           {...register('name')}
         />
 
+        {/* Slug */}
+        <Input
+          label="Slug"
+          placeholder="e.g. engineering"
+          error={errors.slug?.message}
+          {...register('slug')}
+        />
+
         {/* Description */}
         <Textarea
           label="Department Description"
@@ -144,7 +168,7 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
 
         {/* Department Head */}
         <Select
-          label="Department Head"
+          label="Department Head (optional)"
           placeholder="Select a department head"
           options={deptHeadOptions}
           error={errors.headId?.message}

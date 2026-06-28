@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { UserPlus, Trash2, Save, Users, Ticket } from 'lucide-react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { RotateCcw, BellRing, UserPlus, Trash2, Save, Users, Ticket } from 'lucide-react';
 import { PageWrapper } from '../../../components/layout/PageWrapper.js';
 import { Tabs } from '../../../components/ui/index.js';
 import { Button } from '../../../components/ui/index.js';
@@ -20,9 +22,26 @@ import { useUIStore } from '../../../store/uiStore.js';
 import { useModal } from '../../../hooks/useModal.js';
 import { departmentsApi } from '../../../api/departments.js';
 import { usersApi } from '../../../api/users.js';
+import { createDepartmentSchema } from '../schemas.js';
+import type { CreateDepartmentFormData } from '../schemas.js';
 import type { Ticket as TicketType, Department, User } from '../../../types/index.js';
 import { getStatusVariant, getPriorityVariant } from '../../../components/ui/index.js';
 import styles from './DepartmentDetailPage.module.css';
+
+const ROUTING_OPTIONS = [
+  {
+    value: 'roster_based' as const,
+    label: 'Roster-Based',
+    description: 'Tickets are assigned in rotation to available team members.',
+    Icon: RotateCcw,
+  },
+  {
+    value: 'all_notify' as const,
+    label: 'All-Notify',
+    description: 'All members are notified simultaneously for every ticket.',
+    Icon: BellRing,
+  },
+];
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -45,18 +64,32 @@ export function DepartmentDetailPage(): ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-
   const [activeTab, setActiveTab] = useState('overview');
-  const [responseHours, setResponseHours] = useState('');
-  const [resolutionHours, setResolutionHours] = useState('');
-  const [webhook, setWebhook] = useState('');
-  const [description, setDescription] = useState('');
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
   const [selectedAddUserId, setSelectedAddUserId] = useState('');
-  const [saving, setSaving] = useState(false);
 
   const addMemberModal = useModal();
   const deleteModal = useModal();
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<CreateDepartmentFormData>({
+    resolver: zodResolver(createDepartmentSchema),
+    defaultValues: {
+      name: '',
+      slug: '',
+      description: '',
+      headId: '',
+      routing: 'roster_based',
+      responseTimeHours: 1,
+      resolutionTimeHours: 8,
+      teamsWebhook: '',
+    },
+  });
 
   const fetchDept = useCallback(async () => {
     if (!id) return;
@@ -81,6 +114,20 @@ export function DepartmentDetailPage(): ReactElement {
   useEffect(() => {
     void usersApi.list({ limit: 500 }).then((res) => setAllUsers(res.data));
   }, []);
+
+  useEffect(() => {
+    if (!dept) return;
+    reset({
+      name: dept.name,
+      slug: dept.slug,
+      description: dept.description ?? '',
+      headId: dept.headId ?? '',
+      routing: dept.routing,
+      responseTimeHours: msToHours(dept.sla.responseTimeMs),
+      resolutionTimeHours: msToHours(dept.sla.resolutionTimeMs),
+      teamsWebhook: dept.teamsWebhook ?? '',
+    });
+  }, [dept, reset]);
 
   if (loading) {
     return (
@@ -107,57 +154,32 @@ export function DepartmentDetailPage(): ReactElement {
   const addableUsers = allUsers.filter(
     (u) => u.id !== dept.headId && !dept.memberIds.includes(u.id),
   );
+  const deptHeadOptions = allUsers
+    .filter((u) => u.role === 'dept_head' || u.role === 'root_admin')
+    .map((u) => ({ value: u.id, label: u.name }));
 
   const isRoster = dept.routing === 'roster_based';
   const routingLabel = isRoster ? 'Roster-Based' : 'All-Notify';
   const routingVariant = isRoster ? ('purple' as const) : ('info' as const);
 
-  async function handleSaveSLA(): Promise<void> {
-    if (!dept) return;
-    const respMs = responseHours ? parseFloat(responseHours) * 60 * 60 * 1000 : dept.sla.responseTimeMs;
-    const resMs = resolutionHours ? parseFloat(resolutionHours) * 60 * 60 * 1000 : dept.sla.resolutionTimeMs;
-    setSaving(true);
+  async function handleSaveAll(data: CreateDepartmentFormData): Promise<void> {
     try {
-      const updated = await departmentsApi.update(dept.id, {
-        slaResponseMs: respMs,
-        slaResolutionMs: resMs,
+      const updated = await departmentsApi.update(dept!.id, {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        headId: data.headId || undefined,
+        routing: data.routing,
+        sla: {
+          responseTimeMs: data.responseTimeHours * 60 * 60 * 1000,
+          resolutionTimeMs: data.resolutionTimeHours * 60 * 60 * 1000,
+        },
+        teamsWebhook: data.teamsWebhook || undefined,
       });
       setDept(updated);
-      setResponseHours('');
-      setResolutionHours('');
-      addToast({ type: 'success', message: 'SLA configuration saved' });
+      addToast({ type: 'success', message: 'Department updated' });
     } catch (err) {
-      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save SLA' });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveDescription(): Promise<void> {
-    if (!dept) return;
-    setSaving(true);
-    try {
-      const updated = await departmentsApi.update(dept.id, { description });
-      setDept(updated);
-      addToast({ type: 'success', message: 'Description updated' });
-    } catch (err) {
-      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save description' });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveWebhook(): Promise<void> {
-    if (!dept) return;
-    setSaving(true);
-    try {
-      const updated = await departmentsApi.update(dept.id, { teamsWebhook: webhook });
-      setDept(updated);
-      addToast({ type: 'success', message: 'Webhook URL saved' });
-    } catch (err) {
-      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save webhook' });
-    } finally {
-      setSaving(false);
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update department' });
     }
   }
 
@@ -250,7 +272,7 @@ export function DepartmentDetailPage(): ReactElement {
   ];
 
   return (
-    <PageWrapper title={dept.name} subtitle={dept.description}>
+    <PageWrapper title={dept.name} subtitle={dept.description ?? undefined}>
       {/* Info bar */}
       <div className={styles.infoBar}>
         {head && (
@@ -266,7 +288,7 @@ export function DepartmentDetailPage(): ReactElement {
           </div>
         )}
 
-        <span className={styles.infoBarDivider} aria-hidden="true" />
+        {head && <span className={styles.infoBarDivider} aria-hidden="true" />}
 
         <div className={styles.infoBarItem}>
           <Badge variant={routingVariant} size="sm">
@@ -288,7 +310,7 @@ export function DepartmentDetailPage(): ReactElement {
         <div className={styles.infoBarItem}>
           <span className={styles.infoBarCount}>
             <Users size={14} />
-            <strong>{members.length + 1}</strong> members
+            <strong>{members.length + (head ? 1 : 0)}</strong> members
           </span>
         </div>
       </div>
@@ -298,79 +320,29 @@ export function DepartmentDetailPage(): ReactElement {
         <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
       </div>
 
-      {/* ── Overview tab ─────────────────────────── */}
+      {/* ── Overview tab (read-only) ──────────────── */}
       {activeTab === 'overview' && (
         <div className={styles.section}>
-          {/* SLA Configuration card */}
           <div className={styles.card}>
             <h3 className={styles.cardTitle}>SLA Configuration</h3>
-            <div className={styles.slaRow}>
-              <Input
-                label="Response Time (hours)"
-                type="number"
-                step="0.5"
-                placeholder={String(msToHours(dept.sla.responseTimeMs))}
-                value={responseHours}
-                onChange={(e) => setResponseHours(e.target.value)}
-              />
-              <Input
-                label="Resolution Time (hours)"
-                type="number"
-                step="1"
-                placeholder={String(msToHours(dept.sla.resolutionTimeMs))}
-                value={resolutionHours}
-                onChange={(e) => setResolutionHours(e.target.value)}
-              />
-              <div className={styles.slaBtnWrap}>
-                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveSLA()} size="sm" loading={saving}>
-                  Save SLA
-                </Button>
+            <div className={styles.statGrid}>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Response Time</span>
+                <span className={styles.statValue}>{msToHours(dept.sla.responseTimeMs)}h</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Resolution Time</span>
+                <span className={styles.statValue}>{msToHours(dept.sla.resolutionTimeMs)}h</span>
               </div>
             </div>
           </div>
 
-          {/* Description card */}
-          <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Department Description</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <Textarea
-                label=""
-                rows={3}
-                placeholder={dept.description}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <div>
-                <Button
-                  leftIcon={<Save size={14} />}
-                  onClick={() => void handleSaveDescription()}
-                  size="sm"
-                  variant="secondary"
-                  loading={saving}
-                >
-                  Save Description
-                </Button>
-              </div>
+          {dept.description && (
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>Description</h3>
+              <p className={styles.descText}>{dept.description}</p>
             </div>
-          </div>
-
-          {/* Teams Webhook card */}
-          <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Teams Webhook</h3>
-            <div className={styles.webhookRow}>
-              <Input
-                label="Webhook URL"
-                placeholder={dept.teamsWebhook}
-                value={webhook}
-                onChange={(e) => setWebhook(e.target.value)}
-              />
-              <div className={styles.slaBtnWrap}>
-                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveWebhook()} size="sm" loading={saving}>
-                  Save
-                </Button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -465,22 +437,124 @@ export function DepartmentDetailPage(): ReactElement {
       {/* ── Settings tab ──────────────────────────── */}
       {activeTab === 'settings' && (
         <div className={styles.section}>
-          {/* Webhook card */}
           <div className={styles.card}>
-            <h3 className={styles.cardTitle}>Teams Webhook</h3>
-            <div className={styles.webhookRow}>
-              <Input
-                label="Webhook URL"
-                placeholder={dept.teamsWebhook}
-                value={webhook}
-                onChange={(e) => setWebhook(e.target.value)}
+            <h3 className={styles.cardTitle}>Department Settings</h3>
+            <form
+              id="edit-dept-form"
+              onSubmit={handleSubmit(handleSaveAll)}
+              className={styles.editForm}
+            >
+              {/* Name & Slug */}
+              <div className={styles.row}>
+                <Input
+                  label="Department Name"
+                  error={errors.name?.message}
+                  {...register('name')}
+                />
+                <Input
+                  label="Slug"
+                  error={errors.slug?.message}
+                  {...register('slug')}
+                />
+              </div>
+
+              {/* Description */}
+              <Textarea
+                label="Description"
+                rows={3}
+                {...register('description')}
               />
-              <div className={styles.slaBtnWrap}>
-                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveWebhook()} size="sm" loading={saving}>
-                  Save
+
+              {/* Department Head */}
+              <Select
+                label="Department Head (optional)"
+                placeholder="Select a department head"
+                options={deptHeadOptions}
+                error={errors.headId?.message}
+                {...register('headId')}
+              />
+
+              {/* Routing Type */}
+              <div className={styles.fieldset}>
+                <p className={styles.fieldLabel}>Routing Type</p>
+                <Controller
+                  name="routing"
+                  control={control}
+                  render={({ field }) => (
+                    <div className={styles.choiceGroup} role="radiogroup" aria-label="Routing type">
+                      {ROUTING_OPTIONS.map(({ value, label, description, Icon }) => {
+                        const isSelected = field.value === value;
+                        return (
+                          <label
+                            key={value}
+                            className={`${styles.choiceCard}${isSelected ? ` ${styles.selected}` : ''}`}
+                          >
+                            <input
+                              type="radio"
+                              className={styles.choiceInput}
+                              value={value}
+                              checked={isSelected}
+                              onChange={() => field.onChange(value)}
+                              name={field.name}
+                            />
+                            <span className={styles.choiceCheck} aria-hidden="true">
+                              <span className={styles.choiceCheckInner} />
+                            </span>
+                            <span className={styles.choiceIconWrap}>
+                              <Icon size={18} />
+                            </span>
+                            <span className={styles.choiceTitle}>{label}</span>
+                            <span className={styles.choiceHint}>{description}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+              </div>
+
+              {/* SLA */}
+              <div className={styles.slaSection}>
+                <p className={styles.fieldLabel}>SLA Configuration</p>
+                <div className={styles.row}>
+                  <Input
+                    label="Response Time (hours)"
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    error={errors.responseTimeHours?.message}
+                    {...register('responseTimeHours', { valueAsNumber: true })}
+                  />
+                  <Input
+                    label="Resolution Time (hours)"
+                    type="number"
+                    step="1"
+                    min="1"
+                    error={errors.resolutionTimeHours?.message}
+                    {...register('resolutionTimeHours', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+
+              {/* Teams Webhook */}
+              <Input
+                label="Teams Webhook URL"
+                placeholder="https://hooks.teams.microsoft.com/..."
+                error={errors.teamsWebhook?.message}
+                {...register('teamsWebhook')}
+              />
+
+              <div className={styles.formActions}>
+                <Button
+                  type="submit"
+                  leftIcon={<Save size={14} />}
+                  loading={isSubmitting}
+                  disabled={!isDirty}
+                >
+                  Save Changes
                 </Button>
               </div>
-            </div>
+            </form>
           </div>
 
           {/* Danger zone */}

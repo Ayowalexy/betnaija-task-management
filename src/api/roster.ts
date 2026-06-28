@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/apiClient';
 import type { Shift } from '../types/index';
+import type { PaginatedResponse } from './tickets';
 
 export interface CreateShiftPayload {
   userId: string;
@@ -10,8 +11,8 @@ export interface CreateShiftPayload {
 }
 
 export const rosterApi = {
-  list: async (params?: { departmentId?: string; month?: string; userId?: string }): Promise<Shift[]> => {
-    return apiGet<Shift[]>('/roster', { params });
+  list: async (params?: { departmentId?: string; month?: string; userId?: string }): Promise<PaginatedResponse<Shift>> => {
+    return apiGet<PaginatedResponse<Shift>>('/roster', { params });
   },
 
   create: async (payload: CreateShiftPayload): Promise<Shift> => {

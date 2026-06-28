@@ -25,6 +25,7 @@ interface TicketListProps {
   loading?: boolean;
   error?: string | null;
   showDepartmentFilter?: boolean;
+  showDepartmentColumn?: boolean;
   showAssigneeFilter?: boolean;
 }
 
@@ -35,6 +36,7 @@ export function TicketList({
   loading = false,
   error = null,
   showDepartmentFilter = true,
+  showDepartmentColumn = true,
 }: TicketListProps) {
   const navigate = useNavigate();
   const { filters, setFilter, resetFilters, filteredTickets } = useTicketFilters(tickets);
@@ -82,14 +84,14 @@ export function TicketList({
       sortable: true,
       render: (t) => <TicketPriorityBadge priority={t.priority} />,
     },
-    {
-      key: 'department',
+    ...(showDepartmentColumn ? [{
+      key: 'department' as const,
       header: 'Department',
       width: '130px',
-      render: (t) => (
+      render: (t: Ticket) => (
         <span className={styles.deptCell}>{t.departmentName ?? t.departmentId.slice(0, 8)}</span>
       ),
-    },
+    }] : []),
     {
       key: 'assignee',
       header: 'Assignee',

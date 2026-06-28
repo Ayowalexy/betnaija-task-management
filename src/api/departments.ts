@@ -4,11 +4,11 @@ import type { PaginatedResponse } from './tickets';
 
 export interface CreateDepartmentPayload {
   name: string;
+  slug: string;
   description?: string;
   headId?: string;
   routing: 'roster_based' | 'all_notify';
-  slaResponseMs: number;
-  slaResolutionMs: number;
+  sla: { responseTimeMs: number; resolutionTimeMs: number };
   teamsWebhook?: string;
 }
 

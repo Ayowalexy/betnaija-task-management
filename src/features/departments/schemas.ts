@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 export const createDepartmentSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  headId: z.string().min(1, 'Department head is required'),
+  slug: z
+    .string()
+    .min(2, 'Slug must be at least 2 characters')
+    .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens'),
+  headId: z.string().optional(),
   routing: z.enum(['roster_based', 'all_notify']),
   responseTimeHours: z
     .number({ error: 'Enter a valid number' })

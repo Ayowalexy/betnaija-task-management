@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../../../components/shared/ConfirmDialog.js';
 import { EmptyState } from '../../../components/shared/EmptyState.js';
 import { useUIStore } from '../../../store/uiStore.js';
 import { useModal } from '../../../hooks/useModal.js';
+import { useAuthStore } from '../../../store/authStore.js';
 import { usersApi } from '../../../api/users.js';
 import { departmentsApi } from '../../../api/departments.js';
 import type { User, Department } from '../../../types/index.js';
@@ -61,6 +62,9 @@ function UserDetailModal({ user, onClose, getDeptName }: UserDetailModalProps): 
 export function UsersPage(): ReactElement {
   const addToast = useUIStore((s) => s.addToast);
   const addModal = useModal();
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const isAdmin = currentUser?.role === 'root_admin';
+  const isDeptHead = currentUser?.role === 'dept_head';
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +86,9 @@ export function UsersPage(): ReactElement {
     try {
       const result = await usersApi.list({
         search: search || undefined,
-        departmentId: deptFilter || undefined,
+        departmentId: isDeptHead && currentUser?.departmentId
+          ? currentUser.departmentId
+          : deptFilter || undefined,
         role: roleFilter || undefined,
         status: statusFilter || undefined,
         page,
@@ -95,7 +101,7 @@ export function UsersPage(): ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [search, deptFilter, roleFilter, statusFilter, page, addToast]);
+  }, [search, deptFilter, roleFilter, statusFilter, page, addToast, isDeptHead, currentUser?.departmentId]);
 
   useEffect(() => {
     void fetchUsers();
@@ -172,7 +178,7 @@ export function UsersPage(): ReactElement {
         </button>
       ),
     },
-    { key: 'department', header: 'Department', render: (u) => getDeptName(u.departmentId) },
+    ...(isAdmin ? [{ key: 'department' as const, header: 'Department', render: (u: User) => getDeptName(u.departmentId) }] : []),
     { key: 'role', header: 'Role', sortable: true, render: (u) => formatRole(u.role) },
     { key: 'status', header: 'Status', render: (u) => <UserStatusBadge status={u.status} /> },
     { key: 'lastLogin', header: 'Last Login', render: (u) => u.lastLogin ? format(new Date(u.lastLogin), 'MMM d, yyyy') : 'Never' },
@@ -197,10 +203,14 @@ export function UsersPage(): ReactElement {
   ];
 
   return (
-    <PageWrapper title="Users" subtitle="Manage user accounts, roles, and permissions" actions={<Button leftIcon={<UserPlus size={16} />} onClick={addModal.open}>Add User</Button>}>
+    <PageWrapper
+      title="Users"
+      subtitle="Manage user accounts, roles, and permissions"
+      actions={isAdmin ? <Button leftIcon={<UserPlus size={16} />} onClick={addModal.open}>Add User</Button> : undefined}
+    >
       <div className={styles.toolbar}>
         <Input placeholder="Search by name or email…" leftIcon={<Search size={15} />} value={search} onChange={(e) => setSearch(e.target.value)} wrapperClassName={styles.searchWrap} />
-        <Select options={deptOptions} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} wrapperClassName={styles.filterSelect} />
+        {isAdmin && <Select options={deptOptions} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} wrapperClassName={styles.filterSelect} />}
         <Select options={roleOptions} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} wrapperClassName={styles.filterSelect} />
         <Select options={statusOptions} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} wrapperClassName={styles.filterSelect} />
       </div>

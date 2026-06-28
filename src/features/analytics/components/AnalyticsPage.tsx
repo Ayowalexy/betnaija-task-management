@@ -11,6 +11,7 @@ import { Button } from '../../../components/ui/index.js';
 import { Input } from '../../../components/ui/index.js';
 import { DataTable } from '../../../components/shared/DataTable.js';
 import type { Column } from '../../../components/shared/DataTable.js';
+import { useAuthStore } from '../../../store/authStore.js';
 import { analyticsApi } from '../../../api/analytics.js';
 import type { AnalyticsData, SLABreach } from '../../../types/index.js';
 import { StatCard } from './StatCard.js';
@@ -44,6 +45,10 @@ const EMPTY_ANALYTICS: AnalyticsData = {
 };
 
 export function AnalyticsPage(): ReactElement {
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const isDeptHead = currentUser?.role === 'dept_head';
+  const deptId = isDeptHead ? (currentUser?.departmentId ?? undefined) : undefined;
+
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(EMPTY_ANALYTICS);
@@ -55,9 +60,10 @@ export function AnalyticsPage(): ReactElement {
     try {
       setLoading(true);
       setError(null);
-      const params: { dateFrom?: string; dateTo?: string } = {};
+      const params: { dateFrom?: string; dateTo?: string; departmentId?: string } = {};
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
+      if (deptId) params.departmentId = deptId;
       const data = await analyticsApi.get(params);
       setAnalyticsData(data);
     } catch {
@@ -65,30 +71,29 @@ export function AnalyticsPage(): ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, deptId]);
 
   useEffect(() => {
     loadAnalytics();
   }, [loadAnalytics]);
 
-  const totalTickets = analyticsData.monthlyVolume.reduce((s, m) => s + m.count, 0);
-  const resolvedCount = analyticsData.ticketsByStatus.find((t) => t.label === 'Resolved')?.value ?? 0;
-  const avgCompliance =
-    analyticsData.slaCompliance.length > 0
+  const summary = analyticsData.summary;
+  const totalTickets = summary?.totalTickets ?? analyticsData.monthlyVolume.reduce((s, m) => s + m.count, 0);
+  const resolvedCount = summary?.resolvedThisMonth ?? analyticsData.ticketsByStatus.find((t) => t.label === 'resolved')?.value ?? 0;
+  const avgCompliance = summary?.slaComplianceRate ??
+    (analyticsData.slaCompliance.length > 0
       ? Math.round(
           (analyticsData.slaCompliance.reduce((s, c) => s + c.complianceRate, 0) /
-            analyticsData.slaCompliance.length) *
-            10
+            analyticsData.slaCompliance.length) * 10
         ) / 10
-      : 0;
-  const avgResolution =
-    analyticsData.avgResolutionTime.length > 0
+      : 0);
+  const avgResolution = summary?.avgResolutionHours ??
+    (analyticsData.avgResolutionTime.length > 0
       ? Math.round(
           (analyticsData.avgResolutionTime.reduce((s, d) => s + d.avgHours, 0) /
-            analyticsData.avgResolutionTime.length) *
-            10
+            analyticsData.avgResolutionTime.length) * 10
         ) / 10
-      : 0;
+      : 0);
 
   function handleExport(): void {
     const content = contentRef.current;
@@ -121,7 +126,7 @@ export function AnalyticsPage(): ReactElement {
   return (
     <PageWrapper
       title="Analytics"
-      subtitle="Monitor ticket volume, SLA compliance, and team performance"
+      subtitle={isDeptHead ? 'Department ticket volume, SLA compliance, and team performance' : 'Monitor ticket volume, SLA compliance, and team performance'}
       actions={
         <div className={styles.topBar}>
           <Input
@@ -216,7 +221,7 @@ export function AnalyticsPage(): ReactElement {
 
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
-              <span className={styles.chartTitle}>SLA Compliance by Department</span>
+              <span className={styles.chartTitle}>{isDeptHead ? 'SLA Compliance' : 'SLA Compliance by Department'}</span>
               <span className={styles.chartSubtitle}>Percentage compliance rate</span>
             </div>
             <ResponsiveContainer width="100%" height={240}>
@@ -295,7 +300,7 @@ export function AnalyticsPage(): ReactElement {
         {/* Row 3: Resolution time bar (full width) */}
         <div className={styles.chartCardFull}>
           <div className={styles.chartHeader}>
-            <span className={styles.chartTitle}>Avg Resolution Time by Department</span>
+            <span className={styles.chartTitle}>{isDeptHead ? 'Avg Resolution Time' : 'Avg Resolution Time by Department'}</span>
             <span className={styles.chartSubtitle}>Hours to resolve tickets per department</span>
           </div>
           <ResponsiveContainer width="100%" height={220}>

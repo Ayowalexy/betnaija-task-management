@@ -25,11 +25,11 @@ export function DeptHeadDashboard() {
 
   useEffect(() => {
     Promise.all([
-      ticketsApi.list({ page: 1, limit: 25 }),
+      ticketsApi.list({ page: 1, limit: 100, ...(currentUser?.departmentId ? { departmentIds: [currentUser.departmentId] } : {}) }),
       rosterApi.list({ month: currentMonth }),
     ]).then(([ticketsRes, shiftsRes]) => {
       setDeptTickets(ticketsRes.data);
-      setTodayShifts(shiftsRes.filter((s) => s.departmentId === deptId && s.date === todayStr));
+      setTodayShifts(shiftsRes.data.filter((s) => s.departmentId === deptId && s.date === todayStr));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -57,7 +57,7 @@ export function DeptHeadDashboard() {
 
   // Recent activity — comments across dept tickets
   const recentActivity = deptTickets
-    .flatMap((t) => t.comments.map((c) => ({ ticket: t, comment: c })))
+    .flatMap((t) => (t.comments ?? []).map((c) => ({ ticket: t, comment: c })))
     .sort((a, b) => new Date(b.comment.createdAt).getTime() - new Date(a.comment.createdAt).getTime())
     .slice(0, 5);
 

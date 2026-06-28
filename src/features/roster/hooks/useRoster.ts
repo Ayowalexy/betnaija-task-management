@@ -40,8 +40,8 @@ export function useRoster(departmentId: string): UseRosterReturn {
   useEffect(() => {
     const month = format(weekStart, 'yyyy-MM');
     setLoading(true);
-    rosterApi.list({ departmentId, month }).then((data) => {
-      setShifts(data);
+    rosterApi.list({ departmentId, month }).then((res) => {
+      setShifts(res.data);
     }).catch(() => {
       // silent – keep existing shifts
     }).finally(() => {
