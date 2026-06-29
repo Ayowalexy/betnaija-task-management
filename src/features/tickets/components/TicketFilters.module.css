@@ -113,3 +113,49 @@
   border-color: var(--color-border-focus);
   box-shadow: var(--shadow-focus);
 }
+
+/* SLA breach date range group */
+.slaBreachGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.slaBreachLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  padding-right: var(--space-1);
+  border-right: 1px solid var(--color-border-default);
+  margin-right: var(--space-1);
+  line-height: 1;
+}
+
+.slaBreachSep {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/* Override date inputs inside the group to be borderless */
+.slaBreachGroup .dateInput {
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-1);
+  height: auto;
+  box-shadow: none;
+  width: 130px;
+}
+
+.slaBreachGroup .dateInput:hover,
+.slaBreachGroup .dateInput:focus {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}

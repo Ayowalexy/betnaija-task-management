@@ -55,7 +55,7 @@ export function LoginPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.logo}>
-          <img src={logo} alt="Betnaija" style={{ height: 48, objectFit: 'contain' }} />
+          <img src={logo} alt="Bet9ja" style={{ height: 48, objectFit: 'contain' }} />
         </div>
 
         <h1 className={styles.heading}>Welcome back</h1>

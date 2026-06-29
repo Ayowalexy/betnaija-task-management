@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Ticket, TicketFilters } from '../../../types/index';
 import { useTicketStore } from '../../../store/ticketStore';
 import { useDebounce } from '../../../hooks/useDebounce';
+import { getDeptById } from '../../../mocks/departments';
 
 interface UseTicketFiltersReturn {
   filters: TicketFilters;
@@ -40,6 +41,18 @@ export function useTicketFilters(tickets?: Ticket[]): UseTicketFiltersReturn {
       if (filters.dateTo) {
         const to = new Date(filters.dateTo).getTime() + 86400000;
         if (new Date(ticket.createdAt).getTime() > to) return false;
+      }
+      // SLA breach date filter: breach moment = createdAt + dept.sla.resolutionTimeMs
+      if (filters.slaBreachedFrom || filters.slaBreachedTo) {
+        const dept = getDeptById(ticket.departmentId);
+        if (!dept) return false;
+        const breachMs = new Date(ticket.createdAt).getTime() + dept.sla.resolutionTimeMs;
+        if (filters.slaBreachedFrom) {
+          if (breachMs < new Date(filters.slaBreachedFrom).getTime()) return false;
+        }
+        if (filters.slaBreachedTo) {
+          if (breachMs > new Date(filters.slaBreachedTo).getTime() + 86400000) return false;
+        }
       }
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();

@@ -16,7 +16,7 @@ export function PageWrapper({
   children,
 }: PageWrapperProps): ReactElement {
   useEffect(() => {
-    document.title = `${title} — Betnaija`;
+    document.title = `${title} — Bet9ja`;
   }, [title]);
 
   return (

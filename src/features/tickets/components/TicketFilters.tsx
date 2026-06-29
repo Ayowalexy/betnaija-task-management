@@ -95,7 +95,8 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
   const hasFilters =
     filters.departmentIds.length > 0 || filters.statuses.length > 0 ||
     filters.priorities.length > 0 || filters.assigneeId ||
-    filters.dateFrom || filters.dateTo || filters.search;
+    filters.dateFrom || filters.dateTo ||
+    filters.slaBreachedFrom || filters.slaBreachedTo || filters.search;
 
   return (
     <div className={styles.bar}>
@@ -155,6 +156,26 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
           onChange={(e) => onFilterChange({ dateTo: e.target.value || null })}
           aria-label="To date"
         />
+        <div className={styles.slaBreachGroup}>
+          <span className={styles.slaBreachLabel}>SLA breach</span>
+          <input
+            type="date"
+            className={styles.dateInput}
+            value={filters.slaBreachedFrom ?? ''}
+            onChange={(e) => onFilterChange({ slaBreachedFrom: e.target.value || null })}
+            aria-label="SLA breach from date"
+            title="SLA breached from"
+          />
+          <span className={styles.slaBreachSep}>—</span>
+          <input
+            type="date"
+            className={styles.dateInput}
+            value={filters.slaBreachedTo ?? ''}
+            onChange={(e) => onFilterChange({ slaBreachedTo: e.target.value || null })}
+            aria-label="SLA breach to date"
+            title="SLA breached to"
+          />
+        </div>
       </div>
       {hasFilters && (
         <Button variant="ghost" size="sm" leftIcon={<RotateCcw size={13} />} onClick={onReset}>

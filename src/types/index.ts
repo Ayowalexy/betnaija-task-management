@@ -250,5 +250,7 @@ export interface TicketFilters {
   assigneeId: string | null;
   dateFrom: string | null;
   dateTo: string | null;
+  slaBreachedFrom: string | null;
+  slaBreachedTo: string | null;
   search: string;
 }

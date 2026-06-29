@@ -74,7 +74,7 @@ export function AddUserModal({ isOpen, onClose }: AddUserModalProps): ReactEleme
         <Input
           label="Email Address"
           type="email"
-          placeholder="user@betnaija.com"
+          placeholder="user@bet9ja.com"
           error={errors.email?.message}
           {...register('email')}
         />

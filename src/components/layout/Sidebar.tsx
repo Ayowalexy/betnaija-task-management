@@ -145,7 +145,7 @@ export function Sidebar(): ReactElement {
       >
         {/* Logo */}
         <div className={styles.logoArea}>
-          <img src={logo} alt="Betnaija" className={styles.logoImg} />
+          <img src={logo} alt="Bet9ja" className={styles.logoImg} />
         </div>
 
         {/* Collapse toggle */}
