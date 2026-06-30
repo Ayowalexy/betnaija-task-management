@@ -104,3 +104,7 @@
   background: var(--color-status-closed-bg);
   color: var(--color-status-closed-text);
 }
+.status_rejected {
+  background: #FEE2E2;
+  color: #B91C1C;
+}

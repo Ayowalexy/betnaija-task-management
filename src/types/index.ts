@@ -13,7 +13,8 @@ export type TicketStatus =
   | 'defaulted'
   | 'escalated'
   | 'resolved'
-  | 'closed';
+  | 'closed'
+  | 'rejected';
 
 // Ticket priority (4 levels)
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
@@ -127,6 +128,15 @@ export interface Ticket {
   requestorId: string;
   requestorName?: string | null;
   requestorInitials?: string | null;
+  requestor?: {
+    id: string;
+    name: string;
+    email: string;
+    departmentId: string | null;
+    departmentName?: string | null;
+    avatarInitials: string;
+    avatarColor: string;
+  } | null;
   slaStatus?: SLAStatus;
   slaResolutionDeadline?: string | null;
   slaResponseDeadline?: string | null;
@@ -136,6 +146,7 @@ export interface Ticket {
   updatedAt: string; // ISO
   resolvedAt: string | null;
   closedAt: string | null;
+  rejectionNote?: string | null;
   comments: Comment[];
   attachments: Attachment[];
   linkedTicketIds: string[];

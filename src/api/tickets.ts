@@ -78,6 +78,10 @@ export const ticketsApi = {
     return apiPatch<Ticket>(`/tickets/${id}/close`);
   },
 
+  reject: async (id: string, note: string): Promise<Ticket> => {
+    return apiPatch<Ticket>(`/tickets/${id}/reject`, { note });
+  },
+
   addComment: async (ticketId: string, payload: CreateCommentPayload) => {
     const form = new FormData();
     form.append('content', payload.content);

@@ -66,9 +66,11 @@ interface TicketFiltersProps {
   onReset: () => void;
   departments: Department[];
   users: User[];
+  showDepartmentFilter?: boolean;
+  showAssigneeFilter?: boolean;
 }
 
-export function TicketFilters({ filters, onFilterChange, onReset, departments, users }: TicketFiltersProps) {
+export function TicketFilters({ filters, onFilterChange, onReset, departments, users, showDepartmentFilter = true, showAssigneeFilter = true }: TicketFiltersProps) {
   function toggleDept(id: string) {
     const next = filters.departmentIds.includes(id)
       ? filters.departmentIds.filter((d) => d !== id)
@@ -93,8 +95,9 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
   }
 
   const hasFilters =
-    filters.departmentIds.length > 0 || filters.statuses.length > 0 ||
-    filters.priorities.length > 0 || filters.assigneeId ||
+    (showDepartmentFilter && filters.departmentIds.length > 0) ||
+    filters.statuses.length > 0 || filters.priorities.length > 0 ||
+    (showAssigneeFilter && filters.assigneeId) ||
     filters.dateFrom || filters.dateTo || filters.search;
 
   return (
@@ -112,12 +115,14 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
           ) : undefined}
           wrapperClassName={styles.searchInput}
         />
-        <MultiSelectDropdown
-          label="Department"
-          options={departments.map((d) => ({ value: d.id, label: d.name }))}
-          selected={filters.departmentIds}
-          onToggle={toggleDept}
-        />
+        {showDepartmentFilter && (
+          <MultiSelectDropdown
+            label="Department"
+            options={departments.map((d) => ({ value: d.id, label: d.name }))}
+            selected={filters.departmentIds}
+            onToggle={toggleDept}
+          />
+        )}
         <MultiSelectDropdown
           label="Status"
           options={STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
@@ -130,17 +135,19 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
           selected={filters.priorities}
           onToggle={togglePriority}
         />
-        <select
-          className={styles.assigneeSelect}
-          value={filters.assigneeId ?? ''}
-          onChange={(e) => onFilterChange({ assigneeId: e.target.value || null })}
-          aria-label="Filter by assignee"
-        >
-          <option value="">All Assignees</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>{u.name}</option>
-          ))}
-        </select>
+        {showAssigneeFilter && (
+          <select
+            className={styles.assigneeSelect}
+            value={filters.assigneeId ?? ''}
+            onChange={(e) => onFilterChange({ assigneeId: e.target.value || null })}
+            aria-label="Filter by assignee"
+          >
+            <option value="">All Assignees</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+        )}
         <input
           type="date"
           className={styles.dateInput}

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ArrowLeft, ExternalLink, ArrowRightLeft, TrendingUp, CheckCircle2, XCircle, CreditCard, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, ArrowRightLeft, TrendingUp, CheckCircle2, XCircle, CreditCard, Pencil, Check, X, Paperclip, Ban } from 'lucide-react';
+import { Modal } from '../../../components/ui/index';
 import type { Ticket, TicketStatus } from '../../../types/index';
 import { Button } from '../../../components/ui/index';
 import { Avatar } from '../../../components/ui/index';
@@ -18,6 +19,12 @@ import { TransferModal } from './TransferModal';
 import { PaymentModal } from './PaymentModal';
 import styles from './TicketDetail.module.css';
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 interface TicketDetailProps {
   ticket: Ticket;
   onRefresh: () => void;
@@ -29,8 +36,11 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
   const { toast } = useToast();
   const transferModal = useModal();
   const paymentModal = useModal();
+  const rejectModal = useModal();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [rejectNote, setRejectNote] = useState('');
+  const [rejecting, setRejecting] = useState(false);
 
   if (!ticket) {
     return (
@@ -56,6 +66,7 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
   const canEscalate = isDeptHead && ticket.status === 'in_progress';
   const canClose = (isAdmin || isDeptHead) && ticket.status === 'resolved';
   const canInitiatePayment = isFinance && (isDeptHead || isAssignee) && ticket.status === 'resolved';
+  const canReject = (isDeptHead || isAssignee || isAdmin) && ['open', 'in_progress'].includes(ticket.status);
 
   async function handleStatusChange(_newStatus: TicketStatus) {
     // Status changes are handled via dedicated action buttons (accept/resolve/close/escalate)
@@ -125,6 +136,21 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
     }
   }
 
+  async function handleReject() {
+    setRejecting(true);
+    try {
+      await ticketsApi.reject(ticket.id, rejectNote.trim());
+      toast({ type: 'success', message: 'Ticket rejected.' });
+      rejectModal.close();
+      setRejectNote('');
+      onRefresh();
+    } catch {
+      toast({ type: 'error', message: 'Failed to reject ticket.' });
+    } finally {
+      setRejecting(false);
+    }
+  }
+
   const canEditTitle = isAssignee || isDeptHead || isAdmin;
 
   return (
@@ -175,6 +201,48 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
             ))}
           </div>
 
+          {/* Rejection note */}
+          {ticket.status === 'rejected' && ticket.rejectionNote && (
+            <div className={styles.rejectionNote}>
+              <Ban size={15} className={styles.rejectionIcon} aria-hidden="true" />
+              <div>
+                <span className={styles.rejectionLabel}>Rejected</span>
+                <p className={styles.rejectionText}>{ticket.rejectionNote}</p>
+              </div>
+            </div>
+          )}
+          {ticket.status === 'rejected' && !ticket.rejectionNote && (
+            <div className={styles.rejectionNote}>
+              <Ban size={15} className={styles.rejectionIcon} aria-hidden="true" />
+              <span className={styles.rejectionLabel}>This ticket was rejected.</span>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {ticket.attachments.length > 0 && (
+            <div className={styles.section}>
+              <h4 className={styles.sectionTitle}>Attachments</h4>
+              <div className={styles.attachmentList}>
+                {ticket.attachments.map((a) => (
+                  <a
+                    key={a.id}
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.attachmentItem}
+                    download={a.name}
+                  >
+                    <Paperclip size={13} className={styles.attachIcon} aria-hidden="true" />
+                    <span className={styles.attachName}>{a.name}</span>
+                    {a.sizeBytes > 0 && (
+                      <span className={styles.attachSize}>{formatBytes(a.sizeBytes)}</span>
+                    )}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Status/Priority/Dept row */}
           <div className={styles.badgeRow}>
             <TicketStatusBadge
@@ -214,7 +282,23 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
             </span>
             <span className={styles.metaLabel}>Requestor</span>
             <span className={styles.metaValue}>
-              {ticket.requestorName ? (
+              {ticket.requestor ? (
+                <span className={styles.userChip}>
+                  <Avatar
+                    initials={ticket.requestor.avatarInitials}
+                    color={ticket.requestor.avatarColor}
+                    size="xs"
+                    name={ticket.requestor.name}
+                  />
+                  <span className={styles.requestorDetails}>
+                    <span className={styles.userName}>{ticket.requestor.name}</span>
+                    <span className={styles.requestorMeta}>{ticket.requestor.email}</span>
+                    {ticket.requestor.departmentName && (
+                      <span className={styles.requestorMeta}>{ticket.requestor.departmentName}</span>
+                    )}
+                  </span>
+                </span>
+              ) : ticket.requestorName ? (
                 <span className={styles.userChip}>
                   <Avatar
                     initials={ticket.requestorInitials ?? ticket.requestorName.slice(0, 2).toUpperCase()}
@@ -222,9 +306,7 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
                     size="xs"
                     name={ticket.requestorName}
                   />
-                  <span>
-                    <span className={styles.userName}>{ticket.requestorName}</span>
-                  </span>
+                  <span className={styles.userName}>{ticket.requestorName}</span>
                 </span>
               ) : '—'}
             </span>
@@ -309,6 +391,11 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
                 Initiate Payment
               </Button>
             )}
+            {canReject && (
+              <Button variant="danger" leftIcon={<Ban size={14} />} onClick={rejectModal.open}>
+                Reject
+              </Button>
+            )}
           </div>
         </div>
 
@@ -330,6 +417,35 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
         onClose={paymentModal.close}
         ticketId={ticket.id}
       />
+
+      <Modal
+        isOpen={rejectModal.isOpen}
+        onClose={() => { rejectModal.close(); setRejectNote(''); }}
+        title="Reject Ticket"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { rejectModal.close(); setRejectNote(''); }} disabled={rejecting}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleReject} loading={rejecting}>
+              Confirm Rejection
+            </Button>
+          </>
+        }
+      >
+        <p className={styles.rejectModalHint}>
+          Provide a reason for rejecting this ticket. The requestor will be notified by email.
+        </p>
+        <textarea
+          className={styles.rejectNoteInput}
+          placeholder="Enter rejection reason…"
+          value={rejectNote}
+          onChange={(e) => setRejectNote(e.target.value)}
+          rows={4}
+          autoFocus
+        />
+      </Modal>
     </div>
   );
 }

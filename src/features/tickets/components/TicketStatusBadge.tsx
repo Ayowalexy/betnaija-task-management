@@ -13,6 +13,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   resolved: 'Resolved',
   defaulted: 'Defaulted',
   closed: 'Closed',
+  rejected: 'Rejected',
 };
 
 interface TicketStatusBadgeProps {

@@ -220,6 +220,18 @@
   color: var(--color-text-tertiary);
 }
 
+.requestorDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.requestorMeta {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
 .unassigned {
   font-style: italic;
   color: var(--color-text-disabled);
@@ -237,6 +249,118 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   margin: 0;
+}
+
+.attachmentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attachmentItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.attachmentItem:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.attachIcon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.attachmentItem:hover .attachIcon {
+  color: var(--color-primary);
+}
+
+.attachName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachSize {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-left: auto;
+  padding-left: var(--space-3);
+}
+
+/* Rejection callout */
+.rejectionNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-left: 4px solid #EF4444;
+  border-radius: var(--radius-md);
+}
+
+.rejectionIcon {
+  flex-shrink: 0;
+  color: #EF4444;
+  margin-top: 1px;
+}
+
+.rejectionLabel {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: #B91C1C;
+  margin-bottom: var(--space-1);
+}
+
+.rejectionText {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: #7F1D1D;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Reject modal */
+.rejectModalHint {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.rejectNoteInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-bg-input, var(--color-bg-surface));
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.rejectNoteInput:focus {
+  border-color: var(--color-primary);
 }
 
 .linkedChips {

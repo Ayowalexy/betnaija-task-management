@@ -37,6 +37,7 @@ export function TicketList({
   error = null,
   showDepartmentFilter = true,
   showDepartmentColumn = true,
+  showAssigneeFilter = true,
 }: TicketListProps) {
   const navigate = useNavigate();
   const { filters, setFilter, resetFilters, filteredTickets } = useTicketFilters(tickets);
@@ -147,6 +148,8 @@ export function TicketList({
           onReset={resetFilters}
           departments={departments}
           users={[]}
+          showDepartmentFilter={showDepartmentFilter}
+          showAssigneeFilter={showAssigneeFilter}
         />
         {error && (
           <EmptyState title="Error loading tickets" description={error} />

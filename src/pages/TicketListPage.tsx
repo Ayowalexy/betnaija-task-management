@@ -16,9 +16,8 @@ export function TicketListPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === 'root_admin';
-  const isDeptHead = currentUser?.role === 'dept_head';
 
-  const title = isAdmin ? 'All Tickets' : isDeptHead ? 'Department Tickets' : 'My Tickets';
+  const title = isAdmin ? 'All Tickets' : 'Department Tickets';
 
   useEffect(() => {
     let cancelled = false;
@@ -26,10 +25,8 @@ export function TicketListPage(): ReactElement {
     setError(null);
 
     const apiFilters: Parameters<typeof ticketsApi.list>[0] = { ...filters };
-    if (!isAdmin && isDeptHead && currentUser?.departmentId) {
+    if (!isAdmin && currentUser?.departmentId) {
       apiFilters.departmentIds = [currentUser.departmentId];
-    } else if (!isAdmin && !isDeptHead && currentUser?.id) {
-      apiFilters.assigneeId = currentUser.id;
     }
 
     ticketsApi.list(apiFilters)
@@ -48,7 +45,7 @@ export function TicketListPage(): ReactElement {
       });
 
     return () => { cancelled = true; };
-  }, [filters, isAdmin, isDeptHead, currentUser?.departmentId, currentUser?.id]);
+  }, [filters, isAdmin, currentUser?.departmentId]);
 
   return (
     <TicketList
@@ -59,7 +56,7 @@ export function TicketListPage(): ReactElement {
       error={error}
       showDepartmentFilter={isAdmin}
       showDepartmentColumn={isAdmin}
-      showAssigneeFilter={isAdmin || isDeptHead}
+      showAssigneeFilter={isAdmin}
     />
   );
 }

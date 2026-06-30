@@ -9,4 +9,5 @@ export const STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
   resolved: ['closed'],
   defaulted: ['in_progress', 'closed'],
   closed: [],
+  rejected: [],
 };
