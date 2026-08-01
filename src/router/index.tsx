@@ -22,6 +22,15 @@ import { CreateTicketPage } from '../features/tickets/components/CreateTicketPag
 import { DepartmentsPage } from '../features/departments/components/DepartmentsPage';
 import { DepartmentDetailPage } from '../features/departments/components/DepartmentDetailPage';
 
+// Utility pages
+import { UtilitiesPage } from '../features/utilities/components/UtilitiesPage';
+import { UtilityDetailPage } from '../features/utilities/components/UtilityDetailPage';
+
+// Utility Request pages
+import { UtilityRequestListPage } from '../pages/UtilityRequestListPage';
+import { UtilityRequestDetailPage } from '../pages/UtilityRequestDetailPage';
+import { CreateUtilityRequestPage } from '../features/utility-requests/components/CreateUtilityRequestPage';
+
 // User pages
 import { UsersPage } from '../features/users/components/UsersPage';
 
@@ -103,6 +112,50 @@ export const router = createBrowserRouter([
             <RoleGuard allowed={['root_admin']}>
               <DepartmentDetailPage />
             </RoleGuard>
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: '/utilities',
+        element: (
+          <ErrorBoundary>
+            <RoleGuard allowed={['root_admin']}>
+              <UtilitiesPage />
+            </RoleGuard>
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: '/utilities/:id',
+        element: (
+          <ErrorBoundary>
+            <RoleGuard allowed={['root_admin']}>
+              <UtilityDetailPage />
+            </RoleGuard>
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: '/utility-requests',
+        element: (
+          <ErrorBoundary>
+            <UtilityRequestListPage />
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: '/utility-requests/new',
+        element: (
+          <ErrorBoundary>
+            <CreateUtilityRequestPage />
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: '/utility-requests/:id',
+        element: (
+          <ErrorBoundary>
+            <UtilityRequestDetailPage />
           </ErrorBoundary>
         ),
       },

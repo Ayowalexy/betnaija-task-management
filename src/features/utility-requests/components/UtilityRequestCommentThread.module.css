@@ -1,0 +1,306 @@
+.thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: var(--space-4);
+}
+
+.threadTitle {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.commentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding: var(--space-8) 0;
+}
+
+/* Comment */
+.comment {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.commentBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.commentHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.commentAuthor {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.commentTime {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.editedTag {
+  color: var(--color-text-disabled);
+  font-style: italic;
+}
+
+.commentContent {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.attachChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  background: var(--color-primary-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.reactionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.reactionBtn:hover {
+  background: var(--color-bg-muted);
+}
+
+.commentActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  position: relative;
+}
+
+.comment:hover .commentActions {
+  opacity: 1;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.actionBtn:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.actionBtn.danger:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.reactionPicker {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  box-shadow: var(--shadow-sm);
+  position: absolute;
+  top: 28px;
+  left: 0;
+  z-index: var(--z-popover);
+}
+
+.emojiBtn {
+  font-size: 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.emojiBtn:hover {
+  background: var(--color-bg-subtle);
+}
+
+/* Edit box */
+.editBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.editTextarea {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-focus);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  resize: vertical;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Input area */
+.inputArea {
+  border-top: 1px solid var(--color-border-default);
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.toolBtn:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.inputRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.textareaWrap {
+  flex: 1;
+  position: relative;
+}
+
+.commentTextarea {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  resize: vertical;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.commentTextarea:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.mentionDropdown {
+  position: absolute;
+  bottom: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+  z-index: var(--z-dropdown);
+}
+
+.mentionItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.mentionItem:hover {
+  background: var(--color-bg-subtle);
+}

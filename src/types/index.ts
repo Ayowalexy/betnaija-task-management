@@ -68,6 +68,14 @@ export interface SLAConfig {
   resolutionTimeMs: number; // milliseconds
 }
 
+export interface RequestType {
+  id: string;
+  name: string;
+  description: string;
+  priority: TicketPriority;
+  sla: SLAConfig;
+}
+
 export interface Department {
   id: string;
   name: string;
@@ -78,6 +86,94 @@ export interface Department {
   activeTicketCount: number;
   teamsWebhook: string;
   description: string;
+  requestTypes: RequestType[];
+  utilityIds: string[]; // Utility.id — organization resources requesters can use for this department
+}
+
+// Utility (bookable org resources — meeting rooms, pool cars, equipment, etc.)
+export type CalendarProvider = 'google' | 'outlook' | 'ics';
+export type CalendarSyncMode = 'meeting' | 'event';
+export type UtilityStatus = 'active' | 'inactive';
+
+export interface UtilityOption {
+  id: string;
+  name: string;
+}
+
+export interface UtilityCalendarIntegration {
+  enabled: boolean;
+  provider: CalendarProvider | null;
+  calendarAddress: string; // calendar email/ID the utility syncs to
+  syncMode: CalendarSyncMode | null; // 'meeting' invites attendees & shows availability, 'event' just blocks the calendar
+}
+
+export interface Utility {
+  id: string;
+  name: string;
+  description: string;
+  options: UtilityOption[];
+  calendar: UtilityCalendarIntegration;
+  status: UtilityStatus;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+// Utility Request (a requester booking a utility option from a department)
+export type UtilityRequestStatus = 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+
+export type UtilityRequestLogAction =
+  | 'created'
+  | 'updated'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'completed';
+
+export interface UtilityRequestLogEntry {
+  id: string;
+  timestamp: string; // ISO
+  actorId: string;
+  action: UtilityRequestLogAction;
+  note: string | null; // e.g. rejection reason or summary of what changed
+}
+
+export interface UtilityRequestComment {
+  id: string;
+  requestId: string;
+  authorId: string;
+  content: string;
+  createdAt: string; // ISO
+  updatedAt: string | null;
+  isEdited: boolean;
+  reactions: Reaction[];
+  attachments: Attachment[];
+}
+
+export interface UtilityRequest {
+  id: string;
+  utilityId: string;
+  utilityOptionId: string;
+  departmentId: string; // department responsible for approving this request
+  requestorId: string;
+  date: string; // ISO date YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  details: string;
+  status: UtilityRequestStatus;
+  rejectionReason: string | null;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+  comments: UtilityRequestComment[];
+  log: UtilityRequestLogEntry[];
+}
+
+export interface UtilityRequestFilters {
+  departmentIds: string[];
+  utilityIds: string[];
+  statuses: UtilityRequestStatus[];
+  dateFrom: string | null;
+  dateTo: string | null;
+  search: string;
 }
 
 export interface Comment {
@@ -115,6 +211,7 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   departmentId: string;
+  requestType: { id: string; name: string } | null;
   assigneeId: string | null;
   requestorId: string;
   createdAt: string; // ISO

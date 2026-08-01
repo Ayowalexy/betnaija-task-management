@@ -15,7 +15,7 @@ import { useToast } from '../../../hooks/useToast';
 import { useModal } from '../../../hooks/useModal';
 import { DEPARTMENTS, getDeptById } from '../../../mocks/departments';
 import type { Ticket } from '../../../types/index';
-import { createTicketSchema } from '../schemas';
+import { createTicketSchema, OTHER_REQUEST_TYPE_ID } from '../schemas';
 import type { CreateTicketFormData } from '../schemas';
 import styles from './CreateTicketPage.module.css';
 
@@ -27,6 +27,12 @@ const PRIORITY_OPTIONS = [
 ];
 
 const DEPT_OPTIONS = DEPARTMENTS.map((d) => ({ value: d.id, label: d.name }));
+
+function getRequestTypeOptions(deptId: string) {
+  const dept = getDeptById(deptId);
+  const presetOptions = (dept?.requestTypes ?? []).map((rt) => ({ value: rt.id, label: rt.name }));
+  return [...presetOptions, { value: OTHER_REQUEST_TYPE_ID, label: 'Other (custom request)' }];
+}
 
 function formatMs(ms: number): string {
   if (ms < 60 * 60 * 1000) return `${Math.round(ms / 60000)}m`;
@@ -72,17 +78,25 @@ function FileList({ files, onRemove }: FileListProps) {
 
 interface SLAInfoBannerProps {
   deptId: string;
+  requestTypeId?: string;
 }
 
-function SLAInfoBanner({ deptId }: SLAInfoBannerProps) {
+function SLAInfoBanner({ deptId, requestTypeId }: SLAInfoBannerProps) {
   const dept = getDeptById(deptId);
   if (!dept) return null;
+  const requestType =
+    requestTypeId && requestTypeId !== OTHER_REQUEST_TYPE_ID
+      ? dept.requestTypes.find((rt) => rt.id === requestTypeId)
+      : undefined;
+  const sla = requestType?.sla ?? dept.sla;
   return (
     <div className={styles.slaBanner}>
-      <span className={styles.slaBannerTitle}>📋 SLA for {dept.name}</span>
+      <span className={styles.slaBannerTitle}>
+        📋 SLA for {requestType ? requestType.name : dept.name}
+      </span>
       <div className={styles.slaPills}>
-        <span className={styles.slaPillBlue}>Response: {formatMs(dept.sla.responseTimeMs)}</span>
-        <span className={styles.slaPillOrange}>Resolution: {formatMs(dept.sla.resolutionTimeMs)}</span>
+        <span className={styles.slaPillBlue}>Response: {formatMs(sla.responseTimeMs)}</span>
+        <span className={styles.slaPillOrange}>Resolution: {formatMs(sla.resolutionTimeMs)}</span>
       </div>
     </div>
   );
@@ -98,6 +112,10 @@ interface TicketPreviewProps {
 
 function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting }: TicketPreviewProps) {
   const dept = data.departmentId ? getDeptById(data.departmentId) : null;
+  const requestTypeName =
+    data.requestTypeId === OTHER_REQUEST_TYPE_ID
+      ? data.customRequestTypeName
+      : dept?.requestTypes.find((rt) => rt.id === data.requestTypeId)?.name;
   const priorityColors: Record<string, string> = {
     low: 'var(--color-priority-low)',
     medium: 'var(--color-priority-medium)',
@@ -130,6 +148,10 @@ function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting }: Ticket
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Department</span>
           <span className={styles.previewValue}>{dept?.name || '—'}</span>
+        </div>
+        <div className={styles.previewRow}>
+          <span className={styles.previewLabel}>Request Type</span>
+          <span className={styles.previewValue}>{requestTypeName || '—'}</span>
         </div>
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Priority</span>
@@ -180,12 +202,40 @@ export function CreateTicketPage() {
     formState: { errors, isSubmitting },
   } = useForm<CreateTicketFormData>({
     resolver: zodResolver(createTicketSchema),
-    defaultValues: { title: '', description: '', priority: 'medium', departmentId: '', attachments: [] },
+    defaultValues: {
+      title: '',
+      description: '',
+      priority: 'medium',
+      departmentId: '',
+      requestTypeId: '',
+      customRequestTypeName: '',
+      attachments: [],
+    },
   });
 
   const watchedValues = useWatch({ control });
   const selectedDeptId = watchedValues.departmentId ?? '';
+  const selectedRequestTypeId = watchedValues.requestTypeId ?? '';
   const attachments = watchedValues.attachments ?? [];
+  const requestTypeOptions = React.useMemo(() => getRequestTypeOptions(selectedDeptId), [selectedDeptId]);
+  const prevDeptIdRef = React.useRef(selectedDeptId);
+
+  React.useEffect(() => {
+    if (prevDeptIdRef.current !== selectedDeptId) {
+      prevDeptIdRef.current = selectedDeptId;
+      setValue('requestTypeId', '');
+      setValue('customRequestTypeName', '');
+    }
+  }, [selectedDeptId, setValue]);
+
+  React.useEffect(() => {
+    if (!selectedRequestTypeId || selectedRequestTypeId === OTHER_REQUEST_TYPE_ID) return;
+    const dept = getDeptById(selectedDeptId);
+    const requestType = dept?.requestTypes.find((rt) => rt.id === selectedRequestTypeId);
+    if (requestType) {
+      setValue('priority', requestType.priority);
+    }
+  }, [selectedRequestTypeId, selectedDeptId, setValue]);
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -206,6 +256,14 @@ export function CreateTicketPage() {
     if (!currentUser) return;
     const id = `t${Date.now().toString().slice(-6)}`;
     const now = new Date().toISOString();
+    const dept = getDeptById(data.departmentId);
+    const requestType =
+      data.requestTypeId === OTHER_REQUEST_TYPE_ID
+        ? { id: OTHER_REQUEST_TYPE_ID, name: (data.customRequestTypeName ?? '').trim() }
+        : (() => {
+            const preset = dept?.requestTypes.find((rt) => rt.id === data.requestTypeId);
+            return preset ? { id: preset.id, name: preset.name } : null;
+          })();
     const newTicket: Ticket = {
       id,
       title: data.title,
@@ -213,6 +271,7 @@ export function CreateTicketPage() {
       status: 'open',
       priority: data.priority,
       departmentId: data.departmentId,
+      requestType,
       assigneeId: null,
       requestorId: currentUser.id,
       createdAt: now,
@@ -278,7 +337,32 @@ export function CreateTicketPage() {
               />
             </div>
 
-            {selectedDeptId && <SLAInfoBanner deptId={selectedDeptId} />}
+            {selectedDeptId && (
+              <Controller
+                name="requestTypeId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    label="Request Type *"
+                    options={requestTypeOptions}
+                    placeholder="Select request type…"
+                    error={errors.requestTypeId?.message}
+                    {...field}
+                  />
+                )}
+              />
+            )}
+
+            {selectedRequestTypeId === OTHER_REQUEST_TYPE_ID && (
+              <Input
+                label="Custom Request Type Name *"
+                placeholder="e.g. Recover deleted files"
+                error={errors.customRequestTypeName?.message}
+                {...register('customRequestTypeName')}
+              />
+            )}
+
+            {selectedDeptId && <SLAInfoBanner deptId={selectedDeptId} requestTypeId={selectedRequestTypeId} />}
 
             <Textarea
               label="Description *"

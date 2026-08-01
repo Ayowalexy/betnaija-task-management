@@ -1,0 +1,146 @@
+/* ─── Page shell ─────────────────────────────────────────────────── */
+.pageWrapper {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  min-height: 100%;
+  background: var(--color-bg-base);
+}
+
+/* ─── Card ───────────────────────────────────────────────────────── */
+.card {
+  width: 100%;
+  max-width: 720px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.cardHeader {
+  padding: var(--space-8) var(--space-8) var(--space-6);
+}
+
+.cardTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-1);
+}
+
+.cardSubtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.divider {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* ─── Form body ──────────────────────────────────────────────────── */
+.formBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8);
+}
+
+/* ─── Column layouts ─────────────────────────────────────────────── */
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.threeCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 600px) {
+  .twoCol,
+  .threeCol {
+    grid-template-columns: 1fr;
+  }
+  .cardHeader,
+  .formBody {
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
+}
+
+/* ─── Read-only department display ──────────────────────────────── */
+.deptReadonly {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.deptReadonlyLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.deptReadonlyValue {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 var(--space-3);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ─── Form footer ────────────────────────────────────────────────── */
+.formFooter {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* ─── Preview modal body ─────────────────────────────────────────── */
+.previewBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.previewRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.previewLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.previewValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.previewFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
