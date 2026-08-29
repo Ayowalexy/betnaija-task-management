@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useSLACountdown } from '../../hooks/useSLACountdown';
+import { useSLACountdown } from '@/hooks/useSLACountdown';
 import styles from './SLACountdown.module.css';
 
 interface SLACountdownProps {

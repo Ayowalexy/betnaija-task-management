@@ -1,13 +1,13 @@
 import { useState, useRef } from 'react';
 import { Send, Bold, Italic, List, Code, Paperclip, Smile, Reply, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { Comment } from '../../../types/index';
-import { Avatar } from '../../../components/ui/index';
-import { Button } from '../../../components/ui/index';
-import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
-import { useAuthStore } from '../../../store/authStore';
-import { useToast } from '../../../hooks/useToast';
-import { ticketsApi } from '../../../api/tickets';
+import type { Comment } from '@/types/index';
+import { Avatar } from '@/components/ui/index';
+import { Button } from '@/components/ui/index';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { useAuthStore } from '@/store/authStore';
+import { useToast } from '@/hooks/useToast';
+import { ticketsApi } from '@/api/tickets';
 import styles from './CommentThread.module.css';
 
 const REACTIONS = ['👍', '❤️', '😂', '🎉'];

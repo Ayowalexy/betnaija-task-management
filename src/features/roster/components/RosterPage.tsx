@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Upload } from 'lucide-react';
 import { format, addDays, isToday } from 'date-fns';
-import type { Shift } from '../../../types/index';
-import { useAuthStore } from '../../../store/authStore';
-import { useToast } from '../../../hooks/useToast';
-import { PageWrapper } from '../../../components/layout/PageWrapper';
-import { Button, Modal } from '../../../components/ui/index';
+import type { Shift } from '@/types/index';
+import { useAuthStore } from '@/store/authStore';
+import { useToast } from '@/hooks/useToast';
+import { PageWrapper } from '@/components/layout/PageWrapper';
+import { Button, Modal } from '@/components/ui/index';
 import { useRoster } from '../hooks/useRoster';
 import { ShiftBlock } from './ShiftBlock';
 import { AddShiftModal } from './AddShiftModal';

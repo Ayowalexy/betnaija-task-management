@@ -1,7 +1,7 @@
 import { Check, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
-import type { ChatMessage, User } from '../../../types/index';
-import { Avatar } from '../../../components/ui/index';
+import type { ChatMessage, User } from '@/types/index';
+import { Avatar } from '@/components/ui/index';
 import styles from './MessageBubble.module.css';
 
 interface MessageBubbleProps {

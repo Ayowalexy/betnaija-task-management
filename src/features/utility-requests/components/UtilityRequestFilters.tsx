@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, X, RotateCcw } from 'lucide-react';
-import type { UtilityRequestFilters as UtilityRequestFiltersState, UtilityRequestStatus, Department, Utility } from '../../../types/index.js';
-import { Input } from '../../../components/ui/index.js';
-import { Checkbox } from '../../../components/ui/index.js';
-import { Button } from '../../../components/ui/index.js';
+import type { UtilityRequestFilters as UtilityRequestFiltersState, UtilityRequestStatus, Department, Utility } from '@/types/index.js';
+import { Input } from '@/components/ui/index.js';
+import { Checkbox } from '@/components/ui/index.js';
+import { Button } from '@/components/ui/index.js';
 import { STATUS_LABELS } from '../types.js';
 import styles from './UtilityRequestFilters.module.css';
 

@@ -1,4 +1,4 @@
-import type { TicketPriority } from '../../../types/index';
+import type { TicketPriority } from '@/types/index';
 import styles from './TicketPriorityBadge.module.css';
 
 const PRIORITY_LABELS: Record<TicketPriority, string> = {

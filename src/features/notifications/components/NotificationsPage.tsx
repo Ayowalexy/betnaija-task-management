@@ -6,11 +6,11 @@ import {
   Bell, Inbox, AlertTriangle, CheckCircle2, MessageSquare,
   CreditCard, TrendingUp, ArrowRightLeft,
 } from 'lucide-react';
-import type { Notification, NotificationType } from '../../../types/index.js';
-import { notificationsApi } from '../../../api/notifications.js';
-import { useToast } from '../../../hooks/useToast.js';
-import { Button, Tabs } from '../../../components/ui/index.js';
-import { PageWrapper } from '../../../components/layout/PageWrapper.js';
+import type { Notification, NotificationType } from '@/types/index.js';
+import { notificationsApi } from '@/api/notifications.js';
+import { useToast } from '@/hooks/useToast.js';
+import { Button, Tabs } from '@/components/ui/index.js';
+import { PageWrapper } from '@/components/layout/PageWrapper.js';
 import styles from './NotificationsPage.module.css';
 
 type FilterTab = 'all' | 'unread' | 'tickets' | 'sla' | 'payments';

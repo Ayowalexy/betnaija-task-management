@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Modal } from '../../../components/ui/Modal';
-import { Button } from '../../../components/ui/index';
-import { useToast } from '../../../hooks/useToast';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/index';
+import { useToast } from '@/hooks/useToast';
 import styles from './PaymentModal.module.css';
 
 interface PaymentModalProps {

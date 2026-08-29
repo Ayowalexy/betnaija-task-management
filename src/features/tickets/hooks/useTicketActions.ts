@@ -1,6 +1,6 @@
-import { useAuthStore } from '../../../store/authStore';
-import { useToast } from '../../../hooks/useToast';
-import { ticketsApi } from '../../../api/tickets';
+import { useAuthStore } from '@/store/authStore';
+import { useToast } from '@/hooks/useToast';
+import { ticketsApi } from '@/api/tickets';
 
 interface UseTicketActionsReturn {
   acceptTicket: (ticketId: string, onRefresh?: () => void) => Promise<void>;

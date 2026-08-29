@@ -1,4 +1,4 @@
-import type { RoutingType, TicketPriority } from '../../types/index.js';
+import type { RoutingType, TicketPriority } from '@/types/index.js';
 
 export interface RequestTypeForm {
   name: string;

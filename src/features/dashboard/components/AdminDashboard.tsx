@@ -5,12 +5,12 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { ticketsApi } from '../../../api/tickets';
-import { analyticsApi } from '../../../api/analytics';
-import { PageWrapper } from '../../../components/layout/PageWrapper';
-import { Button, Modal } from '../../../components/ui/index';
+import { ticketsApi } from '@/api/tickets';
+import { analyticsApi } from '@/api/analytics';
+import { PageWrapper } from '@/components/layout/PageWrapper';
+import { Button, Modal } from '@/components/ui/index';
 import { StatCard } from './StatCard';
-import type { Ticket as TicketType, AnalyticsData } from '../../../types/index';
+import type { Ticket as TicketType, AnalyticsData } from '@/types/index';
 import styles from './AdminDashboard.module.css';
 
 export function AdminDashboard() {

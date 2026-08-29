@@ -19,11 +19,11 @@ import {
   LogOut,
 } from 'lucide-react';
 import type { ReactNode, ReactElement } from 'react';
-import type { UserRole } from '../../types/index';
-import { useAuthStore } from '../../store/authStore';
-import { useUIStore } from '../../store/uiStore';
-import { useNotifications } from '../../hooks/useNotifications';
-import logo from '../../assets/logo.png';
+import type { UserRole } from '@/types/index';
+import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
+import { useNotifications } from '@/hooks/useNotifications';
+import logo from '@/assets/logo.png';
 import styles from './Sidebar.module.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────

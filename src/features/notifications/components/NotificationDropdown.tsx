@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { Notification } from '../../../types/index';
-import { notificationsApi } from '../../../api/notifications';
+import type { Notification } from '@/types/index';
+import { notificationsApi } from '@/api/notifications';
 import { NotificationItem } from './NotificationItem';
 import styles from './NotificationDropdown.module.css';
 

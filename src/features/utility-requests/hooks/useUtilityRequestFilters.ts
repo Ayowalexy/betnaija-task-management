@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { UtilityRequest, UtilityRequestFilters } from '../../../types/index.js';
-import { useUtilityRequestStore } from '../../../store/utilityRequestStore.js';
-import { useDebounce } from '../../../hooks/useDebounce.js';
-import { getUtilityById } from '../../../mocks/utilities.js';
+import type { UtilityRequest, UtilityRequestFilters } from '@/types/index.js';
+import { useUtilityRequestStore } from '@/store/utilityRequestStore.js';
+import { useDebounce } from '@/hooks/useDebounce.js';
+import { getUtilityById } from '@/mocks/utilities.js';
 
 interface UseUtilityRequestFiltersReturn {
   filters: UtilityRequestFilters;

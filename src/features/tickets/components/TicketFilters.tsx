@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, X, RotateCcw } from 'lucide-react';
-import type { TicketFilters, Department, User, TicketStatus, TicketPriority } from '../../../types/index';
-import { Input } from '../../../components/ui/index';
-import { Checkbox } from '../../../components/ui/index';
-import { Button } from '../../../components/ui/index';
+import type { TicketFilters, Department, User, TicketStatus, TicketPriority } from '@/types/index';
+import { Input } from '@/components/ui/index';
+import { Checkbox } from '@/components/ui/index';
+import { Button } from '@/components/ui/index';
 import styles from './TicketFilters.module.css';
 
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'pending', 'transferred', 'escalated', 'resolved', 'defaulted', 'closed', 'rejected'];

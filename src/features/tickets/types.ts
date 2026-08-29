@@ -1,4 +1,4 @@
-import type { TicketStatus } from '../../types/index';
+import type { TicketStatus } from '@/types/index';
 
 export const STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
   open: ['in_progress', 'transferred', 'closed'],

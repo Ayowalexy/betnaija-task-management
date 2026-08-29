@@ -3,11 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import { useAuthStore } from "../../../store/authStore";
-import { authApi } from "../../../api/auth";
+import { useAuthStore } from "@/store/authStore";
+import { authApi } from "@/api/auth";
 import { loginSchema } from "../schemas";
 import type { LoginFormValues } from "../types";
-import logo from "../../../assets/logo.png";
+import logo from "@/assets/logo.png";
 import styles from "./LoginPage.module.css";
 
 export function LoginPage() {

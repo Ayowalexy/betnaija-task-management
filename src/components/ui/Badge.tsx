@@ -1,5 +1,5 @@
 import React from 'react';
-import type { TicketStatus, TicketPriority } from '../../types/index.js';
+import type { TicketStatus, TicketPriority } from '@/types/index.js';
 import styles from './Badge.module.css';
 
 interface BadgeProps {

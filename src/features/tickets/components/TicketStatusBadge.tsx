@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { TicketStatus } from '../../../types/index';
+import type { TicketStatus } from '@/types/index';
 import { STATUS_TRANSITIONS } from '../types';
 import styles from './TicketStatusBadge.module.css';
 

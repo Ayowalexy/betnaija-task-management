@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import type { UserStatus } from '../../../types/index.js';
-import { Badge } from '../../../components/ui/index.js';
+import type { UserStatus } from '@/types/index.js';
+import { Badge } from '@/components/ui/index.js';
 
 interface UserStatusBadgeProps {
   status: UserStatus;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
-import type { Toast } from '../../types/index.js';
-import { useUIStore } from '../../store/uiStore.js';
+import type { Toast } from '@/types/index.js';
+import { useUIStore } from '@/store/uiStore.js';
 import styles from './Toast.module.css';
 
 // ── ToastItem ──────────────────────────────────────────────

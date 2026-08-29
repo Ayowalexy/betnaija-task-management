@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Plus, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { Conversation } from '../../../types/index';
+import type { Conversation } from '@/types/index';
 // TODO: Replace USERS mock with a users API call once available
-import { USERS } from '../../../mocks/users';
-import { useAuthStore } from '../../../store/authStore';
-import { Avatar, Modal } from '../../../components/ui/index';
+import { USERS } from '@/mocks/users';
+import { useAuthStore } from '@/store/authStore';
+import { Avatar, Modal } from '@/components/ui/index';
 import styles from './ConversationList.module.css';
 
 interface ConversationListProps {

@@ -1,4 +1,4 @@
-import type { UserRole } from '../../types/index.js';
+import type { UserRole } from '@/types/index.js';
 
 export interface CreateUserForm {
   name: string;

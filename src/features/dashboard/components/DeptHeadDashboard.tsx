@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 import { Ticket, CheckCircle, Clock, Activity } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { formatDistanceToNow } from 'date-fns';
-import { useAuthStore } from '../../../store/authStore';
-import { ticketsApi } from '../../../api/tickets';
-import { rosterApi } from '../../../api/roster';
-import { PageWrapper } from '../../../components/layout/PageWrapper';
-import { Avatar } from '../../../components/ui/index';
+import { useAuthStore } from '@/store/authStore';
+import { ticketsApi } from '@/api/tickets';
+import { rosterApi } from '@/api/roster';
+import { PageWrapper } from '@/components/layout/PageWrapper';
+import { Avatar } from '@/components/ui/index';
 import { StatCard } from './StatCard';
-import type { Ticket as TicketType, Shift } from '../../../types/index';
+import type { Ticket as TicketType, Shift } from '@/types/index';
 import styles from './DeptHeadDashboard.module.css';
 
 export function DeptHeadDashboard() {

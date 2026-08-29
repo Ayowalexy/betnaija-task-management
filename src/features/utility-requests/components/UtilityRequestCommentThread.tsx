@@ -1,13 +1,13 @@
 import { useState, useRef } from 'react';
 import { Send, Bold, Italic, List, Code, Paperclip, Smile, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { UtilityRequestComment } from '../../../types/index.js';
-import { Avatar } from '../../../components/ui/index.js';
-import { Button } from '../../../components/ui/index.js';
-import { ConfirmDialog } from '../../../components/shared/ConfirmDialog.js';
-import { useUtilityRequestStore } from '../../../store/utilityRequestStore.js';
-import { useAuthStore } from '../../../store/authStore.js';
-import { getUserById, USERS } from '../../../mocks/users.js';
+import type { UtilityRequestComment } from '@/types/index.js';
+import { Avatar } from '@/components/ui/index.js';
+import { Button } from '@/components/ui/index.js';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog.js';
+import { useUtilityRequestStore } from '@/store/utilityRequestStore.js';
+import { useAuthStore } from '@/store/authStore.js';
+import { getUserById, USERS } from '@/mocks/users.js';
 import styles from './UtilityRequestCommentThread.module.css';
 
 const REACTIONS = ['👍', '❤️', '😂', '🎉'];

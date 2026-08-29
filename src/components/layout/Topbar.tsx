@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Sun, Moon, Bell, User, LogOut } from 'lucide-react';
-import { useAuthStore } from '../../store/authStore';
-import { useUIStore } from '../../store/uiStore';
-import { useTheme } from '../../hooks/useTheme';
-import { useNotifications } from '../../hooks/useNotifications';
+import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
+import { useTheme } from '@/hooks/useTheme';
+import { useNotifications } from '@/hooks/useNotifications';
 import styles from './Topbar.module.css';
 
 interface TopbarProps {

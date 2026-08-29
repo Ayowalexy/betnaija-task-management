@@ -1,11 +1,11 @@
 import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Wrench, ListChecks, CalendarCheck2 } from 'lucide-react';
-import { PageWrapper } from '../../../components/layout/PageWrapper.js';
-import { Button } from '../../../components/ui/index.js';
-import { EmptyState } from '../../../components/shared/EmptyState.js';
-import { useUtilityStore } from '../../../store/utilityStore.js';
-import { useModal } from '../../../hooks/useModal.js';
+import { PageWrapper } from '@/components/layout/PageWrapper.js';
+import { Button } from '@/components/ui/index.js';
+import { EmptyState } from '@/components/shared/EmptyState.js';
+import { useUtilityStore } from '@/store/utilityStore.js';
+import { useModal } from '@/hooks/useModal.js';
 import { UtilityCard } from './UtilityCard.js';
 import { CreateUtilityModal } from './CreateUtilityModal.js';
 import styles from './UtilitiesPage.module.css';

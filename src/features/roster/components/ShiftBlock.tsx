@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
-import type { Shift, User } from '../../../types/index';
-import { Avatar } from '../../../components/ui/index';
+import type { Shift, User } from '@/types/index';
+import { Avatar } from '@/components/ui/index';
 import styles from './ShiftBlock.module.css';
 
 interface ShiftBlockProps {

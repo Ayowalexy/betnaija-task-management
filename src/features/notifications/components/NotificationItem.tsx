@@ -1,6 +1,6 @@
 import { Bell, CheckCircle, AlertTriangle, MessageSquare, CreditCard, ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { Notification } from '../../../types/index';
+import type { Notification } from '@/types/index';
 import styles from './NotificationItem.module.css';
 
 interface NotificationItemProps {

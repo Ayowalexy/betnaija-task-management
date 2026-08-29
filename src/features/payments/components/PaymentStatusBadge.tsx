@@ -1,5 +1,5 @@
-import type { PaymentStatus } from '../../../types/index';
-import { Badge } from '../../../components/ui/index';
+import type { PaymentStatus } from '@/types/index';
+import { Badge } from '@/components/ui/index';
 
 interface PaymentStatusBadgeProps {
   status: PaymentStatus;

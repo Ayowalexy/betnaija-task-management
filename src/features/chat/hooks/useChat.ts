@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import type { Conversation, ChatMessage } from '../../../types/index';
-import { CONVERSATIONS } from '../../../mocks/chat';
-import { useAuthStore } from '../../../store/authStore';
+import type { Conversation, ChatMessage } from '@/types/index';
+import { CONVERSATIONS } from '@/mocks/chat';
+import { useAuthStore } from '@/store/authStore';
 
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

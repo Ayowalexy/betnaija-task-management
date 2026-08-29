@@ -1,8 +1,8 @@
 import type { KeyboardEvent } from 'react';
 import { format } from 'date-fns';
-import type { Ticket } from '../../../types/index';
-import { Avatar } from '../../../components/ui/index';
-import { SLACountdown } from '../../../components/shared/SLACountdown';
+import type { Ticket } from '@/types/index';
+import { Avatar } from '@/components/ui/index';
+import { SLACountdown } from '@/components/shared/SLACountdown';
 import { TicketStatusBadge } from './TicketStatusBadge';
 import { TicketPriorityBadge } from './TicketPriorityBadge';
 import styles from './TicketCard.module.css';

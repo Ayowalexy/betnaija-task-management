@@ -6,14 +6,14 @@ import {
 } from 'recharts';
 import { Ticket, CheckCircle2, BarChart2, Clock, Download } from 'lucide-react';
 import { format } from 'date-fns';
-import { PageWrapper } from '../../../components/layout/PageWrapper.js';
-import { Button } from '../../../components/ui/index.js';
-import { Input } from '../../../components/ui/index.js';
-import { DataTable } from '../../../components/shared/DataTable.js';
-import type { Column } from '../../../components/shared/DataTable.js';
-import { useAuthStore } from '../../../store/authStore.js';
-import { analyticsApi } from '../../../api/analytics.js';
-import type { AnalyticsData, SLABreach } from '../../../types/index.js';
+import { PageWrapper } from '@/components/layout/PageWrapper.js';
+import { Button } from '@/components/ui/index.js';
+import { Input } from '@/components/ui/index.js';
+import { DataTable } from '@/components/shared/DataTable.js';
+import type { Column } from '@/components/shared/DataTable.js';
+import { useAuthStore } from '@/store/authStore.js';
+import { analyticsApi } from '@/api/analytics.js';
+import type { AnalyticsData, SLABreach } from '@/types/index.js';
 import { StatCard } from './StatCard.js';
 import styles from './AnalyticsPage.module.css';
 

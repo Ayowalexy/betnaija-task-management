@@ -1,9 +1,9 @@
 import type { ReactElement } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Modal } from '../../../components/ui/index.js';
-import { Button } from '../../../components/ui/index.js';
-import { Textarea } from '../../../components/ui/index.js';
+import { Modal } from '@/components/ui/index.js';
+import { Button } from '@/components/ui/index.js';
+import { Textarea } from '@/components/ui/index.js';
 import { rejectUtilityRequestSchema } from '../schemas.js';
 import type { RejectUtilityRequestFormData } from '../schemas.js';
 

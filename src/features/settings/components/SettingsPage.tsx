@@ -5,11 +5,11 @@ import {
   Mail, MessageSquare, Phone,
   Upload, Eye, EyeOff, Save, Shield, Server, Send,
 } from 'lucide-react';
-import { PageWrapper } from '../../../components/layout/PageWrapper.js';
-import { Tabs, Button, Input } from '../../../components/ui/index.js';
-import { useToast } from '../../../hooks/useToast.js';
-import { settingsApi } from '../../../api/settings.js';
-import type { OrgSettings } from '../../../api/settings.js';
+import { PageWrapper } from '@/components/layout/PageWrapper.js';
+import { Tabs, Button, Input } from '@/components/ui/index.js';
+import { useToast } from '@/hooks/useToast.js';
+import { settingsApi } from '@/api/settings.js';
+import type { OrgSettings } from '@/api/settings.js';
 import styles from './SettingsPage.module.css';
 
 const TABS = [

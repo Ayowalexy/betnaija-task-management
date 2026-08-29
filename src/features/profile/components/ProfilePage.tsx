@@ -3,15 +3,15 @@ import type { ReactElement } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Bell, Mail, MessageSquare, Camera, Save, Lock } from 'lucide-react';
-import { useAuthStore } from '../../../store/authStore';
-import { useToast } from '../../../hooks/useToast';
-import { profileApi } from '../../../api/profile';
-import type { User } from '../../../types/index';
-import { PageWrapper } from '../../../components/layout/PageWrapper';
-import { Avatar, Badge, Button } from '../../../components/ui/index';
+import { useAuthStore } from '@/store/authStore';
+import { useToast } from '@/hooks/useToast';
+import { profileApi } from '@/api/profile';
+import type { User } from '@/types/index';
+import { PageWrapper } from '@/components/layout/PageWrapper';
+import { Avatar, Badge, Button } from '@/components/ui/index';
 import { profileSchema, changePasswordSchema } from '../schemas';
 import type { ProfileFormData, ChangePasswordFormData } from '../schemas';
-import { usePasswordStrength } from '../../auth/hooks/usePasswordStrength';
+import { usePasswordStrength } from '@/features/auth/hooks/usePasswordStrength';
 import styles from './ProfilePage.module.css';
 
 /* ── Left column: Avatar card ── */

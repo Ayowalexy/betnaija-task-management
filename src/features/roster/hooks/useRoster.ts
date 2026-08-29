@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { startOfWeek, endOfWeek, addWeeks, format } from 'date-fns';
-import type { Shift, User } from '../../../types/index';
-import { rosterApi } from '../../../api/roster';
+import type { Shift, User } from '@/types/index';
+import { rosterApi } from '@/api/roster';
 import type { ShiftBlock } from '../types';
 
 interface UseRosterReturn {

@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { Wrench, ListChecks, CalendarCheck2, CalendarOff } from 'lucide-react';
-import type { Utility } from '../../../types/index.js';
+import type { Utility } from '@/types/index.js';
 import styles from './UtilityCard.module.css';
 
 interface UtilityCardProps {

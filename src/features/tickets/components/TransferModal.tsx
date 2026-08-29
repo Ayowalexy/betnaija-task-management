@@ -1,10 +1,10 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Modal } from '../../../components/ui/Modal';
-import { Button } from '../../../components/ui/index';
-import { useToast } from '../../../hooks/useToast';
-import { departmentsApi } from '../../../api/departments';
-import { ticketsApi } from '../../../api/tickets';
-import type { Department } from '../../../types/index';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/index';
+import { useToast } from '@/hooks/useToast';
+import { departmentsApi } from '@/api/departments';
+import { ticketsApi } from '@/api/tickets';
+import type { Department } from '@/types/index';
 import styles from './TransferModal.module.css';
 
 interface TransferModalProps {

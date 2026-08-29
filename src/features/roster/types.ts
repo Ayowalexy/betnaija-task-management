@@ -1,4 +1,4 @@
-import type { Shift, User } from '../../types/index';
+import type { Shift, User } from '@/types/index';
 
 export interface ShiftBlock {
   shift: Shift;

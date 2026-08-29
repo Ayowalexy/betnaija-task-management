@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Shift } from '../../../types/index';
-import { Modal, Button } from '../../../components/ui/index';
+import type { Shift } from '@/types/index';
+import { Modal, Button } from '@/components/ui/index';
 
 interface AddShiftModalProps {
   isOpen: boolean;

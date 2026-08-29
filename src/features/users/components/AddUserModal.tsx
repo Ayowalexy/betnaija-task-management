@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Modal } from '../../../components/ui/index.js';
-import { Button } from '../../../components/ui/index.js';
-import { Input } from '../../../components/ui/index.js';
-import { Select } from '../../../components/ui/index.js';
-import { useUIStore } from '../../../store/uiStore.js';
-import { departmentsApi } from '../../../api/departments.js';
-import { usersApi } from '../../../api/users.js';
+import { Modal } from '@/components/ui/index.js';
+import { Button } from '@/components/ui/index.js';
+import { Input } from '@/components/ui/index.js';
+import { Select } from '@/components/ui/index.js';
+import { useUIStore } from '@/store/uiStore.js';
+import { departmentsApi } from '@/api/departments.js';
+import { usersApi } from '@/api/users.js';
 import { createUserSchema } from '../schemas.js';
 import type { CreateUserFormData } from '../schemas.js';
-import type { Department } from '../../../types/index.js';
+import type { Department } from '@/types/index.js';
 import styles from './AddUserModal.module.css';
 
 interface AddUserModalProps {

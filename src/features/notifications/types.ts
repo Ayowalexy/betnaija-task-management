@@ -1,1 +1,1 @@
-export type { NotificationType } from '../../types/index';
+export type { NotificationType } from '@/types/index';

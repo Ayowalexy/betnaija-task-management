@@ -1,7 +1,7 @@
-import { useUtilityRequestStore } from '../../../store/utilityRequestStore.js';
-import { useAuthStore } from '../../../store/authStore.js';
-import { useToast } from '../../../hooks/useToast.js';
-import type { UtilityRequestLogEntry } from '../../../types/index.js';
+import { useUtilityRequestStore } from '@/store/utilityRequestStore.js';
+import { useAuthStore } from '@/store/authStore.js';
+import { useToast } from '@/hooks/useToast.js';
+import type { UtilityRequestLogEntry } from '@/types/index.js';
 
 interface UseUtilityRequestActionsReturn {
   approveRequest: (requestId: string) => void;

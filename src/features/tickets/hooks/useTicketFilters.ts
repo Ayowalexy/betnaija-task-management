@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import type { Ticket, TicketFilters } from '../../../types/index';
-import { useTicketStore } from '../../../store/ticketStore';
+import type { Ticket, TicketFilters } from '@/types/index';
+import { useTicketStore } from '@/store/ticketStore';
 
 interface UseTicketFiltersReturn {
   filters: TicketFilters;

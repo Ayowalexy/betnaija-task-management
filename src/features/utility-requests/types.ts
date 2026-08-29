@@ -1,4 +1,4 @@
-import type { UtilityRequestStatus } from '../../types/index.js';
+import type { UtilityRequestStatus } from '@/types/index.js';
 
 export const STATUS_LABELS: Record<UtilityRequestStatus, string> = {
   pending: 'Pending',

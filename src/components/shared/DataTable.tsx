@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { ReactNode, ReactElement } from 'react';
 import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { usePagination } from '../../hooks/usePagination';
+import { usePagination } from '@/hooks/usePagination';
 import { EmptyState } from './EmptyState';
 import styles from './DataTable.module.css';
 

@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import type { Department } from '../../../types/index.js';
-import { Avatar } from '../../../components/ui/index.js';
+import type { Department } from '@/types/index.js';
+import { Avatar } from '@/components/ui/index.js';
 import { Building2, Users, Ticket } from 'lucide-react';
 import styles from './DepartmentCard.module.css';
 

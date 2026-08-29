@@ -1,6 +1,6 @@
 import React from 'react';
 import { UploadCloud, X } from 'lucide-react';
-import { useToast } from '../../hooks/useToast.js';
+import { useToast } from '@/hooks/useToast.js';
 import styles from './FileUpload.module.css';
 
 interface FileUploadProps {

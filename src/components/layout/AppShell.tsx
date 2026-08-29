@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import styles from './AppShell.module.css';
