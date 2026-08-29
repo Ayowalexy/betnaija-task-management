@@ -6,11 +6,11 @@ import { Checkbox } from '../../../components/ui/index';
 import { Button } from '../../../components/ui/index';
 import styles from './TicketFilters.module.css';
 
-const STATUSES: TicketStatus[] = ['open', 'in_progress', 'pending', 'transferred', 'escalated', 'resolved', 'defaulted', 'closed'];
+const STATUSES: TicketStatus[] = ['open', 'in_progress', 'pending', 'transferred', 'escalated', 'resolved', 'defaulted', 'closed', 'rejected'];
 const STATUS_LABELS: Record<TicketStatus, string> = {
   open: 'Open', in_progress: 'In Progress', pending: 'Pending',
   transferred: 'Transferred', escalated: 'Escalated', resolved: 'Resolved',
-  defaulted: 'Defaulted', closed: 'Closed',
+  defaulted: 'Defaulted', closed: 'Closed', rejected: 'Rejected',
 };
 const PRIORITIES: TicketPriority[] = ['low', 'medium', 'high', 'critical'];
 const PRIORITY_LABELS: Record<TicketPriority, string> = {
@@ -98,7 +98,8 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
     (showDepartmentFilter && filters.departmentIds.length > 0) ||
     filters.statuses.length > 0 || filters.priorities.length > 0 ||
     (showAssigneeFilter && filters.assigneeId) ||
-    filters.dateFrom || filters.dateTo || filters.search;
+    filters.dateFrom || filters.dateTo ||
+    filters.slaBreachedFrom || filters.slaBreachedTo || filters.search;
 
   return (
     <div className={styles.bar}>
@@ -162,6 +163,26 @@ export function TicketFilters({ filters, onFilterChange, onReset, departments, u
           onChange={(e) => onFilterChange({ dateTo: e.target.value || null })}
           aria-label="To date"
         />
+        <div className={styles.slaBreachGroup}>
+          <span className={styles.slaBreachLabel}>SLA breach</span>
+          <input
+            type="date"
+            className={styles.dateInput}
+            value={filters.slaBreachedFrom ?? ''}
+            onChange={(e) => onFilterChange({ slaBreachedFrom: e.target.value || null })}
+            aria-label="SLA breach from date"
+            title="SLA breached from"
+          />
+          <span className={styles.slaBreachSep}>—</span>
+          <input
+            type="date"
+            className={styles.dateInput}
+            value={filters.slaBreachedTo ?? ''}
+            onChange={(e) => onFilterChange({ slaBreachedTo: e.target.value || null })}
+            aria-label="SLA breach to date"
+            title="SLA breached to"
+          />
+        </div>
       </div>
       {hasFilters && (
         <Button variant="ghost" size="sm" leftIcon={<RotateCcw size={13} />} onClick={onReset}>

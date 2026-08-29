@@ -8,6 +8,8 @@ const DEFAULT_FILTERS: TicketFilters = {
   assigneeId: null,
   dateFrom: null,
   dateTo: null,
+  slaBreachedFrom: null,
+  slaBreachedTo: null,
   search: '',
 };
 

@@ -1,0 +1,42 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.idChip {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.utilityCell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.utilityName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.optionName {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.deptCell,
+.requestorCell {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.dateCell {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}

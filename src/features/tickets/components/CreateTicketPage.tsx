@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, type DragEvent, type ChangeEvent } from 'react';
+import { useRef, useState, useEffect, useMemo, type DragEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +14,7 @@ import { useModal } from '../../../hooks/useModal';
 import { departmentsApi } from '../../../api/departments';
 import { ticketsApi } from '../../../api/tickets';
 import type { Department } from '../../../types/index';
-import { createTicketSchema } from '../schemas';
+import { createTicketSchema, OTHER_REQUEST_TYPE_ID } from '../schemas';
 import type { CreateTicketFormData } from '../schemas';
 import styles from './CreateTicketPage.module.css';
 
@@ -24,6 +24,11 @@ const PRIORITY_OPTIONS = [
   { value: 'high', label: '● High' },
   { value: 'critical', label: '● Critical' },
 ];
+
+function getRequestTypeOptions(dept: Department | null) {
+  const presetOptions = (dept?.requestTypes ?? []).map((rt) => ({ value: rt.id, label: rt.name }));
+  return [...presetOptions, { value: OTHER_REQUEST_TYPE_ID, label: 'Other (custom request)' }];
+}
 
 function formatMs(ms: number): string {
   if (ms < 60 * 60 * 1000) return `${Math.round(ms / 60000)}m`;
@@ -69,15 +74,23 @@ function FileList({ files, onRemove }: FileListProps) {
 
 interface SLAInfoBannerProps {
   dept: Department | null;
+  requestTypeId?: string;
 }
 
-function SLAInfoBanner({ dept }: SLAInfoBannerProps) {
+function SLAInfoBanner({ dept, requestTypeId }: SLAInfoBannerProps) {
   if (!dept) return null;
-  const slaResponseMs = Number(dept.sla?.responseTimeMs ?? 0);
-  const slaResolutionMs = Number(dept.sla?.resolutionTimeMs ?? 0);
+  const requestType =
+    requestTypeId && requestTypeId !== OTHER_REQUEST_TYPE_ID
+      ? (dept.requestTypes ?? []).find((rt) => rt.id === requestTypeId)
+      : undefined;
+  const sla = requestType?.sla ?? dept.sla;
+  const slaResponseMs = Number(sla?.responseTimeMs ?? 0);
+  const slaResolutionMs = Number(sla?.resolutionTimeMs ?? 0);
   return (
     <div className={styles.slaBanner}>
-      <span className={styles.slaBannerTitle}>SLA for {dept.name}</span>
+      <span className={styles.slaBannerTitle}>
+        📋 SLA for {requestType ? requestType.name : dept.name}
+      </span>
       <div className={styles.slaPills}>
         {slaResponseMs > 0 && <span className={styles.slaPillBlue}>Response: {formatMs(slaResponseMs)}</span>}
         {slaResolutionMs > 0 && <span className={styles.slaPillOrange}>Resolution: {formatMs(slaResolutionMs)}</span>}
@@ -92,10 +105,14 @@ interface TicketPreviewProps {
   onSubmit: () => void;
   data: Partial<CreateTicketFormData>;
   isSubmitting: boolean;
+  dept: Department | null;
 }
 
-function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting, deptName }: TicketPreviewProps & { deptName?: string }) {
-  const dept = deptName ? { name: deptName } : null;
+function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting, dept }: TicketPreviewProps) {
+  const requestTypeName =
+    data.requestTypeId === OTHER_REQUEST_TYPE_ID
+      ? data.customRequestTypeName
+      : (dept?.requestTypes ?? []).find((rt) => rt.id === data.requestTypeId)?.name;
   const priorityColors: Record<string, string> = {
     low: 'var(--color-priority-low)',
     medium: 'var(--color-priority-medium)',
@@ -128,6 +145,10 @@ function TicketPreview({ isOpen, onClose, onSubmit, data, isSubmitting, deptName
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Department</span>
           <span className={styles.previewValue}>{dept?.name || '—'}</span>
+        </div>
+        <div className={styles.previewRow}>
+          <span className={styles.previewLabel}>Request Type</span>
+          <span className={styles.previewValue}>{requestTypeName || '—'}</span>
         </div>
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Priority</span>
@@ -181,12 +202,40 @@ export function CreateTicketPage() {
     formState: { errors, isSubmitting },
   } = useForm<CreateTicketFormData>({
     resolver: zodResolver(createTicketSchema),
-    defaultValues: { title: '', description: '', priority: 'medium', departmentId: '', attachments: [] },
+    defaultValues: {
+      title: '',
+      description: '',
+      priority: 'medium',
+      departmentId: '',
+      requestTypeId: '',
+      customRequestTypeName: '',
+      attachments: [],
+    },
   });
 
   const watchedValues = useWatch({ control });
   const selectedDeptId = watchedValues.departmentId ?? '';
+  const selectedRequestTypeId = watchedValues.requestTypeId ?? '';
   const attachments = watchedValues.attachments ?? [];
+  const selectedDept = departments.find((d) => d.id === selectedDeptId) ?? null;
+  const requestTypeOptions = useMemo(() => getRequestTypeOptions(selectedDept), [selectedDept]);
+  const prevDeptIdRef = useRef(selectedDeptId);
+
+  useEffect(() => {
+    if (prevDeptIdRef.current !== selectedDeptId) {
+      prevDeptIdRef.current = selectedDeptId;
+      setValue('requestTypeId', '');
+      setValue('customRequestTypeName', '');
+    }
+  }, [selectedDeptId, setValue]);
+
+  useEffect(() => {
+    if (!selectedRequestTypeId || selectedRequestTypeId === OTHER_REQUEST_TYPE_ID) return;
+    const requestType = (selectedDept?.requestTypes ?? []).find((rt) => rt.id === selectedRequestTypeId);
+    if (requestType) {
+      setValue('priority', requestType.priority);
+    }
+  }, [selectedRequestTypeId, selectedDept, setValue]);
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -262,8 +311,31 @@ export function CreateTicketPage() {
             </div>
 
             {selectedDeptId && (
-              <SLAInfoBanner dept={departments.find((d) => d.id === selectedDeptId) ?? null} />
+              <Controller
+                name="requestTypeId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    label="Request Type *"
+                    options={requestTypeOptions}
+                    placeholder="Select request type…"
+                    error={errors.requestTypeId?.message}
+                    {...field}
+                  />
+                )}
+              />
             )}
+
+            {selectedRequestTypeId === OTHER_REQUEST_TYPE_ID && (
+              <Input
+                label="Custom Request Type Name *"
+                placeholder="e.g. Recover deleted files"
+                error={errors.customRequestTypeName?.message}
+                {...register('customRequestTypeName')}
+              />
+            )}
+
+            {selectedDeptId && <SLAInfoBanner dept={selectedDept} requestTypeId={selectedRequestTypeId} />}
 
             <Textarea
               label="Description *"
@@ -322,7 +394,7 @@ export function CreateTicketPage() {
         onSubmit={handleSubmit(onSubmit)}
         data={watchedValues}
         isSubmitting={isSubmitting}
-        deptName={departments.find((d) => d.id === selectedDeptId)?.name}
+        dept={selectedDept}
       />
     </PageWrapper>
   );

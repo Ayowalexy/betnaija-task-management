@@ -1,8 +1,10 @@
-# FlowDesk — Backend PRD
+# Bet9ja — Backend PRD
 
-**Version:** 1.0  
-**Date:** 2026-06-26  
-**Scope:** Complete backend specification to replace all frontend mock data and power every page of the FlowDesk SPA.
+**Version:** 1.1
+**Date:** 2026-08-29
+**Scope:** Complete backend specification to replace all frontend mock data and power every page of the Bet9ja SPA.
+
+**Changelog (1.0 → 1.1):** Rebranded FlowDesk → Betnaija → Bet9ja. Added per-department **Request Types** (with their own SLA, overriding the department default) that tickets must select from. Added the **Utilities** module (bookable org resources — meeting rooms, pool cars, AV equipment — with optional external calendar sync) and the **Utility Requests** module (a parallel, lighter-weight approval workflow for booking those resources, distinct from Tickets). Replaced the hardcoded Resend integration with an admin-configurable **SMTP** connection (Settings → SMTP tab) sent via Nodemailer. Added an SLA-breach date-range filter to the ticket list.
 
 ---
 
@@ -21,6 +23,10 @@
 11. [SLA Engine](#11-sla-engine)
 12. [Payment Integration (Paystack)](#12-payment-integration-paystack)
 13. [Environment Variables](#13-environment-variables)
+14. [NestJS Module Structure](#14-nestjs-module-structure)
+15. [Data Type Reference](#15-data-type-reference)
+16. [Seed Data](#16-seed-data)
+17. [API Response Shape Conventions](#17-api-response-shape-conventions)
 
 ---
 
@@ -36,7 +42,8 @@
 │  /api/v1/*   (REST + SSE for real-time events)       │
 │                                                      │
 │  Modules:                                            │
-│  auth · users · departments · tickets · roster       │
+│  auth · users · departments (+ request-types)        │
+│  tickets · utilities · utility-requests · roster     │
 │  notifications · payments · analytics · chat         │
 │  files · settings                                    │
 └──┬──────────┬──────────┬──────────┬──────────────────┘
@@ -47,7 +54,7 @@ PostgreSQL  Redis     Stream.io  Keycloak
            SLA jobs)  presence)
            
                       Cloudinary  (file storage)
-                      Resend      (email)
+                      SMTP        (email — admin-configured, via Nodemailer)
                       Twilio      (SMS + WhatsApp)
                       Teams       (webhook)
 ```
@@ -58,6 +65,9 @@ PostgreSQL  Redis     Stream.io  Keycloak
 - Stream.io owns all chat history and real-time delivery. We only store conversation metadata in Postgres.
 - Keycloak owns credentials and sessions. Our DB holds a `users` table that syncs user profile data; the Keycloak user ID (`kc_id`) is the shared key.
 - Every ticket lifecycle event (create, assign, resolve, transfer, escalate, close, comment) fires through a shared `TicketEventEmitter` which fans out to: in-app notifications, email, SMS, WhatsApp, Teams webhook.
+- Each department defines its own **request types** (e.g. Technology → "VPN / Network Access", "Password Reset"), each with its own priority default and SLA window that overrides the department's default SLA when selected on a ticket. Requestors may also pick "Other" and supply a free-text name instead.
+- **Utilities** (bookable org resources) and **Utility Requests** (the booking/approval workflow for them) are modeled as a separate domain from Tickets — same shape of lifecycle (pending → approved/rejected → completed/cancelled, with a comment thread and an append-only activity log) but a simpler state machine and no SLA/priority engine, since these are scheduling requests, not support tickets. A `department_utilities` join table controls which department(s) approve requests for a given utility.
+- Outbound email no longer uses a hardcoded provider. Root admins configure an SMTP connection (host, port, encryption, credentials, sender identity) from Settings → SMTP, which the backend uses via Nodemailer for all transactional email (test-send included).
 
 ---
 
@@ -73,7 +83,7 @@ PostgreSQL  Redis     Stream.io  Keycloak
 | Auth / IAM | Keycloak | 25 |
 | Chat | Stream.io (stream-chat) | latest |
 | File storage | Cloudinary | Node SDK v2 |
-| Email | Resend | latest |
+| Email | Nodemailer (SMTP connection is admin-configured, stored on `settings`) | latest |
 | SMS & WhatsApp | Twilio | latest |
 | Teams | Incoming Webhook (HTTP POST) | — |
 | Payments | Paystack | Node SDK |
@@ -88,7 +98,7 @@ PostgreSQL  Redis     Stream.io  Keycloak
 
 ### 3.1 Realm Configuration
 
-Create a Keycloak realm named `flowdesk`.
+Create a Keycloak realm named `bet9ja`.
 
 **Realm settings:**
 - Access token lifespan: 15 minutes
@@ -111,13 +121,13 @@ All users are assigned exactly **one** role. The NestJS backend reads the role f
 
 ### 3.3 Client Configuration
 
-Create a Keycloak client named `flowdesk-backend`:
+Create a Keycloak client named `bet9ja-backend`:
 - Client authentication: ON (confidential)
 - Grant types: Authorization Code + Refresh Token (for the SPA), Client Credentials (for backend-to-backend)
 - Valid redirect URIs: `http://localhost:5174/*` (dev), `https://<prod-domain>/*`
 - Web origins: `+` (same as redirect URIs)
 
-The SPA uses the `flowdesk-web` public client (Authorization Code + PKCE).
+The SPA uses the `bet9ja-web` public client (Authorization Code + PKCE).
 
 ### 3.4 Custom JWT Claims
 
@@ -166,6 +176,7 @@ When an admin creates a user, Keycloak sets a temporary password and marks `requ
 | POST /users | ✅ | ❌ | ❌ |
 | GET /departments | ✅ | ✅ own | ❌ |
 | POST /departments | ✅ | ❌ | ❌ |
+| POST /departments/:id/request-types | ✅ | ❌ | ❌ |
 | GET /tickets | ✅ all | ✅ own dept | ✅ own tickets |
 | POST /tickets | ✅ | ✅ | ✅ |
 | PATCH /tickets/:id/assign | ✅ | ✅ own dept | ❌ |
@@ -173,6 +184,13 @@ When an admin creates a user, Keycloak sets a temporary password and marks `requ
 | PATCH /tickets/:id/escalate | ✅ | ✅ own dept | ❌ |
 | PATCH /tickets/:id/resolve | ✅ | ✅ own dept | ✅ if assignee |
 | PATCH /tickets/:id/close | ✅ | ✅ own dept | ❌ |
+| GET /utilities | ✅ | ✅ | ✅ |
+| POST /utilities | ✅ | ❌ | ❌ |
+| PATCH·DELETE /utilities/:id | ✅ | ❌ | ❌ |
+| GET /utility-requests | ✅ all | ✅ own dept + own requests | ✅ own requests |
+| POST /utility-requests | ✅ | ✅ | ✅ |
+| PATCH /utility-requests/:id/approve, /reject, /complete | ✅ | ✅ own dept | ❌ |
+| PATCH /utility-requests/:id/cancel | ✅ | ✅ if requestor | ✅ if requestor |
 | GET /analytics | ✅ | ✅ own dept only | ❌ |
 | GET /roster | ✅ | ✅ own dept | ✅ own shifts |
 | POST /roster | ✅ | ✅ own dept | ❌ |
@@ -294,19 +312,23 @@ CREATE TABLE tickets (
   priority        VARCHAR(20) NOT NULL DEFAULT 'medium'
                     CHECK (priority IN ('low','medium','high','critical')),
   department_id   UUID NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
+  request_type_id UUID REFERENCES department_request_types(id) ON DELETE SET NULL,
+  custom_request_type_name VARCHAR(255),  -- set when the requestor picked "Other" instead of a preset request type
   assignee_id     UUID REFERENCES users(id) ON DELETE SET NULL,
   requestor_id    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   resolved_at     TIMESTAMPTZ,
   closed_at       TIMESTAMPTZ,
-  sla_response_deadline   TIMESTAMPTZ NOT NULL,  -- created_at + dept.sla_response_ms
-  sla_resolution_deadline TIMESTAMPTZ NOT NULL,  -- created_at + dept.sla_resolution_ms
+  sla_response_deadline   TIMESTAMPTZ NOT NULL,  -- created_at + (request_type.sla ?? dept.sla).response_ms
+  sla_resolution_deadline TIMESTAMPTZ NOT NULL,  -- created_at + (request_type.sla ?? dept.sla).resolution_ms
   sla_status      VARCHAR(20) NOT NULL DEFAULT 'safe'
                     CHECK (sla_status IN ('safe','warning','critical','breached')),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (request_type_id IS NULL OR custom_request_type_name IS NULL)  -- one or the other, not both
 );
 
 CREATE INDEX idx_tickets_department ON tickets(department_id);
+CREATE INDEX idx_tickets_request_type ON tickets(request_type_id);
 CREATE INDEX idx_tickets_assignee ON tickets(assignee_id);
 CREATE INDEX idx_tickets_requestor ON tickets(requestor_id);
 CREATE INDEX idx_tickets_status ON tickets(status);
@@ -314,6 +336,8 @@ CREATE INDEX idx_tickets_priority ON tickets(priority);
 CREATE INDEX idx_tickets_created_at ON tickets(created_at DESC);
 CREATE INDEX idx_tickets_sla_deadline ON tickets(sla_resolution_deadline);
 ```
+
+**Note:** `request_type_id` and `custom_request_type_name` are populated exclusively — see [4.16 department_request_types](#416-department_request_types). The frontend's `Ticket.requestType` field (`{ id, name } | null`) is assembled server-side from whichever one is set.
 
 ### 4.5 ticket_tags
 
@@ -381,17 +405,20 @@ CREATE TABLE attachments (
   url             TEXT NOT NULL,          -- Cloudinary secure_url
   ticket_id       UUID REFERENCES tickets(id) ON DELETE CASCADE,
   comment_id      UUID REFERENCES comments(id) ON DELETE CASCADE,
+  utility_request_comment_id UUID REFERENCES utility_request_comments(id) ON DELETE CASCADE,
   uploaded_by     UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (
-    (ticket_id IS NOT NULL AND comment_id IS NULL) OR
-    (ticket_id IS NULL AND comment_id IS NOT NULL)
+    num_nonnulls(ticket_id, comment_id, utility_request_comment_id) = 1
   )
 );
 
 CREATE INDEX idx_attachments_ticket ON attachments(ticket_id);
 CREATE INDEX idx_attachments_comment ON attachments(comment_id);
+CREATE INDEX idx_attachments_utility_request_comment ON attachments(utility_request_comment_id);
 ```
+
+**Note:** `utility_request_comment_id` was added so utility-request comment threads (see [4.21 utility_request_comments](#421-utility_request_comments)) can carry file attachments, the same way ticket comments do.
 
 ### 4.10 ticket_transfers
 
@@ -437,11 +464,14 @@ CREATE TABLE notifications (
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type        VARCHAR(50) NOT NULL CHECK (type IN (
                 'ticket_assigned','sla_warning','ticket_resolved','new_comment',
-                'payment_initiated','ticket_escalated','ticket_transferred'
+                'payment_initiated','ticket_escalated','ticket_transferred',
+                'utility_request_submitted','utility_request_approved',
+                'utility_request_rejected','utility_request_completed'
               )),
   title       VARCHAR(500) NOT NULL,
   message     TEXT NOT NULL,
   ticket_id   UUID REFERENCES tickets(id) ON DELETE SET NULL,
+  utility_request_id UUID REFERENCES utility_requests(id) ON DELETE SET NULL,
   is_read     BOOLEAN NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -449,6 +479,8 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_user ON notifications(user_id);
 CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
 ```
+
+**Note:** the four `utility_request_*` types are new — the frontend's `NotificationType` union (`src/types/index.ts`) should be extended to match before the utility-request flow can surface in-app notifications; today it stops at `ticket_transferred`.
 
 ### 4.13 payments
 
@@ -465,7 +497,7 @@ CREATE TABLE payments (
   initiated_by    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   initiated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at    TIMESTAMPTZ,
-  reference       VARCHAR(100) UNIQUE NOT NULL,  -- internal ref: FD-PAY-YYYY-NNNN
+  reference       VARCHAR(100) UNIQUE NOT NULL,  -- internal ref: BJ-PAY-YYYY-NNNN
   description     TEXT NOT NULL
 );
 
@@ -479,7 +511,7 @@ CREATE INDEX idx_payments_initiated_at ON payments(initiated_at DESC);
 ```sql
 CREATE TABLE settings (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_name              VARCHAR(255) NOT NULL DEFAULT 'FlowDesk',
+  org_name              VARCHAR(255) NOT NULL DEFAULT 'Bet9ja',
   org_logo_url          TEXT,
   paystack_public_key   TEXT,
   paystack_secret_key   TEXT,  -- encrypted at rest (AES-256)
@@ -487,10 +519,20 @@ CREATE TABLE settings (
   notif_channel_teams   BOOLEAN NOT NULL DEFAULT FALSE,
   notif_channel_sms     BOOLEAN NOT NULL DEFAULT FALSE,
   notif_channel_whatsapp BOOLEAN NOT NULL DEFAULT FALSE,
+  smtp_provider         VARCHAR(20) CHECK (smtp_provider IN ('office365','gmail','custom')),
+  smtp_host             VARCHAR(255),
+  smtp_port             INTEGER,
+  smtp_encryption       VARCHAR(10) CHECK (smtp_encryption IN ('tls','ssl','none')),
+  smtp_username         VARCHAR(255),
+  smtp_password         TEXT,  -- encrypted at rest (AES-256), same scheme as paystack_secret_key
+  smtp_sender_name      VARCHAR(255),
+  smtp_sender_email     VARCHAR(255),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 -- Single row table (singleton). Seed with INSERT on first run.
 ```
+
+**SMTP fields (new):** back the Settings → SMTP tab. Root admins pick a provider preset (`office365` / `gmail` prefill host+port+encryption, or `custom`), enter credentials and a sender identity, and can trigger a test send. These replace the old hardcoded `RESEND_API_KEY` env var — see [8.3 Email (SMTP via Nodemailer)](#83-email-smtp-via-nodemailer).
 
 ### 4.15 sla_department_defaults
 
@@ -503,6 +545,157 @@ CREATE TABLE sla_department_defaults (
   resolution_ms     BIGINT NOT NULL,
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+```
+
+### 4.16 department_request_types
+
+Each department defines its own request types (e.g. Technology → "VPN / Network Access", "Password Reset", "Hardware Request"). Selecting one on ticket creation sets the ticket's default priority and overrides the department's default SLA for that ticket. A requestor may instead pick "Other" and supply `custom_request_type_name` on the ticket — no row here backs that case (see [4.4 tickets](#44-tickets)).
+
+```sql
+CREATE TABLE department_request_types (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  department_id     UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+  name              VARCHAR(255) NOT NULL,
+  description       TEXT NOT NULL,
+  priority          VARCHAR(20) NOT NULL CHECK (priority IN ('low','medium','high','critical')),
+  sla_response_ms   BIGINT NOT NULL,
+  sla_resolution_ms BIGINT NOT NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (department_id, name)
+);
+
+CREATE INDEX idx_dept_request_types_department ON department_request_types(department_id);
+```
+
+### 4.17 utilities
+
+Bookable organization resources — meeting rooms, pool cars, AV equipment — managed by root admins. Each utility has one or more bookable `options` (e.g. "Meeting Room 1", "Boardroom") and an optional external calendar sync used when a request against it is approved.
+
+```sql
+CREATE TABLE utilities (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                VARCHAR(255) NOT NULL,
+  description         TEXT,
+  status              VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+  calendar_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+  calendar_provider   VARCHAR(20) CHECK (calendar_provider IN ('google','outlook','ics')),
+  calendar_address    VARCHAR(255),   -- calendar email/ID the utility syncs to
+  calendar_sync_mode  VARCHAR(20) CHECK (calendar_sync_mode IN ('meeting','event')),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (
+    NOT calendar_enabled OR
+    (calendar_provider IS NOT NULL AND calendar_address IS NOT NULL AND calendar_sync_mode IS NOT NULL)
+  )
+);
+```
+
+### 4.18 utility_options
+
+```sql
+CREATE TABLE utility_options (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  utility_id    UUID NOT NULL REFERENCES utilities(id) ON DELETE CASCADE,
+  name          VARCHAR(255) NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (utility_id, name)
+);
+
+CREATE INDEX idx_utility_options_utility ON utility_options(utility_id);
+```
+
+### 4.19 department_utilities (join table)
+
+Controls which department(s) approve requests for a given utility — a many-to-many relationship. `POST /utility-requests` requires the chosen `departmentId` to appear here for the chosen `utilityId`.
+
+```sql
+CREATE TABLE department_utilities (
+  department_id   UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+  utility_id      UUID NOT NULL REFERENCES utilities(id) ON DELETE CASCADE,
+  PRIMARY KEY (department_id, utility_id)
+);
+
+CREATE INDEX idx_dept_utilities_utility ON department_utilities(utility_id);
+```
+
+### 4.20 utility_requests
+
+A requestor booking a utility option, approved/rejected by the owning department (dept_head or root_admin). Deliberately simpler than `tickets` — no priority, no SLA engine, no transfers/escalation; just a request → approve/reject → complete lifecycle plus an append-only activity log ([4.23](#423-utility_request_logs)).
+
+```sql
+CREATE TABLE utility_requests (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  utility_id        UUID NOT NULL REFERENCES utilities(id) ON DELETE RESTRICT,
+  utility_option_id UUID NOT NULL REFERENCES utility_options(id) ON DELETE RESTRICT,
+  department_id     UUID NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
+  requestor_id      UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  date              DATE NOT NULL,
+  start_time        TIME NOT NULL,
+  end_time          TIME NOT NULL,
+  details           TEXT NOT NULL,
+  status            VARCHAR(20) NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','approved','rejected','completed','cancelled')),
+  rejection_reason  TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (start_time < end_time),
+  CHECK (status = 'rejected' OR rejection_reason IS NULL)
+);
+
+CREATE INDEX idx_utility_requests_department ON utility_requests(department_id);
+CREATE INDEX idx_utility_requests_utility ON utility_requests(utility_id);
+CREATE INDEX idx_utility_requests_requestor ON utility_requests(requestor_id);
+CREATE INDEX idx_utility_requests_status ON utility_requests(status);
+CREATE INDEX idx_utility_requests_date ON utility_requests(date);
+```
+
+### 4.21 utility_request_comments
+
+```sql
+CREATE TABLE utility_request_comments (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id  UUID NOT NULL REFERENCES utility_requests(id) ON DELETE CASCADE,
+  author_id   UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  content     TEXT NOT NULL,
+  is_edited   BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ
+);
+
+CREATE INDEX idx_utility_request_comments_request ON utility_request_comments(request_id);
+CREATE INDEX idx_utility_request_comments_author ON utility_request_comments(author_id);
+```
+
+### 4.22 utility_request_comment_reactions
+
+```sql
+CREATE TABLE utility_request_comment_reactions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  comment_id  UUID NOT NULL REFERENCES utility_request_comments(id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji       VARCHAR(10) NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (comment_id, user_id, emoji)
+);
+```
+
+### 4.23 utility_request_logs
+
+Append-only activity trail rendered as the "Activity Log" table on the request detail page. A row is written server-side on every state-changing action — never client-editable.
+
+```sql
+CREATE TABLE utility_request_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id  UUID NOT NULL REFERENCES utility_requests(id) ON DELETE CASCADE,
+  timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  actor_id    UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  action      VARCHAR(20) NOT NULL
+                CHECK (action IN ('created','updated','approved','rejected','cancelled','completed')),
+  note        TEXT  -- e.g. rejection reason, or a summary of what changed on an edit
+);
+
+CREATE INDEX idx_utility_request_logs_request ON utility_request_logs(request_id);
 ```
 
 ---
@@ -554,7 +747,7 @@ Returns the current user profile from the DB (populated via JWT `sub` → `kc_id
   "id": "uuid",
   "kcId": "string",
   "name": "Amaka Osei",
-  "email": "amaka@flowdesk.io",
+  "email": "amaka@bet9ja.com",
   "role": "root_admin",
   "departmentId": null,
   "status": "active",
@@ -687,7 +880,7 @@ Create a new user. Provisions the user in Keycloak (Admin REST API), sets a temp
 - Creates Keycloak user
 - Assigns Keycloak realm role
 - Sets `department_id` attribute on Keycloak user
-- Sends welcome email via Resend with login credentials
+- Sends welcome email (via SMTP — see [8.3](#83-email-smtp-via-nodemailer)) with login credentials, if an SMTP connection is configured
 
 #### PATCH /api/v1/users/:id
 Update user profile. Name/email changes are also synced to Keycloak.
@@ -765,6 +958,16 @@ List all departments with computed stats.
         "responseTimeMs": 1800000,
         "resolutionTimeMs": 14400000
       },
+      "requestTypes": [
+        {
+          "id": "uuid",
+          "name": "VPN / Network Access",
+          "description": "Issues connecting to the corporate VPN or internal network.",
+          "priority": "high",
+          "sla": { "responseTimeMs": 900000, "resolutionTimeMs": 7200000 }
+        }
+      ],
+      "utilityIds": ["uuid"],
       "activeTicketCount": 9,
       "teamsWebhook": "https://...",
       "createdAt": "ISO"
@@ -773,6 +976,8 @@ List all departments with computed stats.
   "total": 4
 }
 ```
+
+**`requestTypes`** — this department's request types (see [4.16 department_request_types](#416-department_request_types)); shown as the "Request Type" dropdown on ticket creation, each overriding the department's default SLA when selected. **`utilityIds`** — utilities this department approves booking requests for (see [4.19 department_utilities](#419-department_utilities-join-table)).
 
 #### GET /api/v1/departments/:id
 Get a single department with full details.
@@ -816,7 +1021,16 @@ Create a new department.
     "responseTimeMs": 1800000,
     "resolutionTimeMs": 14400000
   },
-  "teamsWebhook": "string | null"
+  "teamsWebhook": "string | null",
+  "requestTypes": [
+    {
+      "name": "VPN / Network Access",
+      "description": "Issues connecting to the corporate VPN or internal network.",
+      "priority": "high",
+      "sla": { "responseTimeMs": 900000, "resolutionTimeMs": 7200000 }
+    }
+  ],
+  "utilityIds": ["uuid"]
 }
 ```
 
@@ -825,6 +1039,8 @@ Create a new department.
 **Side effects:**
 - Sets `users.department_id = new dept` for the head user
 - Updates Keycloak `department_id` attribute for the head user
+- Inserts one `department_request_types` row per entry in `requestTypes`
+- Inserts `department_utilities` rows for `utilityIds`
 
 #### PATCH /api/v1/departments/:id
 Update department metadata.
@@ -842,13 +1058,14 @@ Update department metadata.
     "responseTimeMs": 3600000,
     "resolutionTimeMs": 86400000
   },
-  "teamsWebhook": "string | null"
+  "teamsWebhook": "string | null",
+  "utilityIds": ["uuid"]
 }
 ```
 
 **Response 200:** Updated department object.
 
-**Side effects:** If `headId` changes, updates old head's dept membership and new head's `department_id`.
+**Side effects:** If `headId` changes, updates old head's dept membership and new head's `department_id`. If `utilityIds` is present, replaces this department's `department_utilities` rows. `requestTypes` are **not** edited here — use the dedicated endpoints below.
 
 #### DELETE /api/v1/departments/:id
 Delete a department. Fails if the department has open/in_progress tickets.
@@ -879,6 +1096,32 @@ Remove a user from a department.
 
 **Response 204:** No content.
 
+#### POST /api/v1/departments/:id/request-types
+Create a request type for this department.
+
+**Access:** root_admin only
+
+**Request:**
+```json
+{
+  "name": "string",
+  "description": "string",
+  "priority": "high",
+  "sla": { "responseTimeMs": 900000, "resolutionTimeMs": 7200000 }
+}
+```
+
+**Response 201:** `{ "id": "uuid", "name": "string", "description": "string", "priority": "high", "sla": { "responseTimeMs": 900000, "resolutionTimeMs": 7200000 } }`
+
+#### PATCH /api/v1/departments/:id/request-types/:requestTypeId
+**Access:** root_admin only
+**Request (partial):** Same shape as create.
+**Response 200:** Updated request type.
+
+#### DELETE /api/v1/departments/:id/request-types/:requestTypeId
+**Access:** root_admin only
+**Response 204:** No content. `tickets.request_type_id` uses `ON DELETE SET NULL`, so tickets that referenced the deleted type simply lose the association (and the request-type badge) rather than being blocked or cascade-deleted.
+
 ---
 
 ### 5.4 Tickets Module (`/api/v1/tickets`)
@@ -896,7 +1139,9 @@ List tickets with filters and pagination.
 - `requestorId` — UUID
 - `dateFrom` — ISO date
 - `dateTo` — ISO date
-- `search` — match against title
+- `slaBreachedFrom` — ISO date; filters to tickets whose `sla_resolution_deadline` falls on/after this date. (The frontend mock approximates this as `createdAt + department.sla.resolutionTimeMs` since mock tickets don't carry a stored deadline; the real API should filter on the ticket's own `sla_resolution_deadline` column, which already accounts for any request-type SLA override and any transfer-triggered recompute — more accurate than the mock's department-only approximation.)
+- `slaBreachedTo` — ISO date; same, on/before this date (inclusive of the full day)
+- `search` — match against ticket ID or title
 - `tags` — comma-separated
 - `page`, `limit`
 - `sortBy` — `createdAt | updatedAt | priority | status` (default: `createdAt`)
@@ -913,6 +1158,7 @@ List tickets with filters and pagination.
       "priority": "high",
       "departmentId": "uuid",
       "departmentName": "Technology",
+      "requestType": { "id": "uuid", "name": "VPN / Network Access" } | null,
       "assigneeId": "uuid | null",
       "assigneeName": "string | null",
       "assigneeInitials": "string | null",
@@ -948,6 +1194,7 @@ Get a single ticket with full details (comments, attachments, transfer history, 
   "priority": "high",
   "departmentId": "uuid",
   "departmentName": "string",
+  "requestType": { "id": "uuid", "name": "VPN / Network Access" } | null,
   "assigneeId": "uuid | null",
   "assignee": { "id": "uuid", "name": "string", "avatarInitials": "SA", "avatarColor": "#hex" } | null,
   "requestorId": "uuid",
@@ -1027,30 +1274,36 @@ Create a new ticket.
 Fields:
 - `title` (string, required)
 - `description` (string, required)
-- `priority` (string: low|medium|high|critical, required)
+- `priority` (string: low|medium|high|critical, required — pre-filled from the request type's default when one is selected, but still editable)
 - `departmentId` (UUID, required)
+- `requestTypeId` (UUID, required — one of the department's `department_request_types`, or the literal string `"other"`)
+- `customRequestTypeName` (string, required if `requestTypeId = "other"`, min 3 chars — ignored otherwise)
 - `tags` (JSON array of strings, optional)
 - `linkedTicketIds` (JSON array of UUIDs, optional)
 - `files[]` (file uploads, optional, max 10 files, max 20MB each)
+
+**Response 400:** `{ "error": "requestTypeId does not belong to the selected department." }` if `requestTypeId` isn't `"other"` and isn't one of `departmentId`'s request types.
 
 **Response 201:**
 ```json
 {
   "id": "uuid",
   "title": "string",
+  "requestType": { "id": "uuid", "name": "VPN / Network Access" } | { "id": "other", "name": "Recover deleted files" } | null,
   ...
 }
 ```
 
 **Side effects:**
-1. Upload files to Cloudinary (folder: `flowdesk/tickets/<ticket_id>/`)
+1. Upload files to Cloudinary (folder: `bet9ja/tickets/<ticket_id>/`)
 2. Create attachment records
-3. Compute SLA deadlines from department SLA config
-4. Create `notifications` records for:
+3. Set `tickets.request_type_id` (preset) or `tickets.custom_request_type_name` (the `"other"` case, trimmed)
+4. Compute SLA deadlines from the selected request type's SLA if one was chosen, else the department's default SLA (see [11.1 Deadline Computation](#111-deadline-computation))
+5. Create `notifications` records for:
    - Department head (ticket_assigned if routing=all_notify, or next shift assignee if roster_based)
    - All dept members if `routing = 'all_notify'`
-5. Send notifications via configured channels
-6. If `routing = 'roster_based'`: query current/next shift from `shifts` table to find the on-call assignee; auto-assign them
+6. Send notifications via configured channels
+7. If `routing = 'roster_based'`: query current/next shift from `shifts` table to find the on-call assignee; auto-assign them
 
 #### PATCH /api/v1/tickets/:id
 Update ticket metadata (title, description, priority, tags, linkedTicketIds).
@@ -1105,8 +1358,8 @@ Transfer ticket to another department.
 **Side effects:**
 1. Creates `ticket_transfers` record
 2. Sets `status = 'transferred'`, clears `assignee_id`
-3. Updates `department_id` to target department
-4. Recomputes SLA deadlines based on target department's SLA config
+3. Updates `department_id` to target department, clears `request_type_id` and `custom_request_type_name` (request types are department-scoped and don't carry across a transfer)
+4. Recomputes SLA deadlines based on target department's default SLA config
 5. Creates activity comment
 6. Creates notifications for target department members/head
 
@@ -1171,7 +1424,7 @@ Fields:
 **Response 201:** Full comment object.
 
 **Side effects:**
-1. Upload files to Cloudinary (folder: `flowdesk/tickets/<ticket_id>/comments/<comment_id>/`)
+1. Upload files to Cloudinary (folder: `bet9ja/tickets/<ticket_id>/comments/<comment_id>/`)
 2. Creates notification for: assignee, requestor, dept_head (type: `new_comment`) — excluding the comment author
 
 #### PATCH /api/v1/tickets/:id/comments/:commentId
@@ -1207,7 +1460,275 @@ Toggle a reaction on a comment (add if not present, remove if already present).
 
 ---
 
-### 5.5 Roster Module (`/api/v1/roster`)
+### 5.5 Utilities Module (`/api/v1/utilities`)
+
+Bookable organization resources (meeting rooms, pool cars, AV equipment). Root admins manage the catalog; every authenticated user can read it, since it populates the "New Utility Request" form for all roles.
+
+#### GET /api/v1/utilities
+List utilities.
+
+**Access:** All authenticated users
+
+**Query params:**
+- `status` — `active | inactive`
+- `search` — fuzzy match on name
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Meeting Rooms",
+      "description": "Bookable meeting and conference rooms across the office.",
+      "options": [{ "id": "uuid", "name": "Meeting Room 1" }],
+      "calendar": {
+        "enabled": true,
+        "provider": "google",
+        "calendarAddress": "meetingrooms@bet9ja.com",
+        "syncMode": "meeting"
+      },
+      "status": "active",
+      "departmentIds": ["uuid"],
+      "createdAt": "ISO",
+      "updatedAt": "ISO"
+    }
+  ],
+  "total": 3
+}
+```
+
+#### GET /api/v1/utilities/:id
+**Access:** All authenticated users
+**Response 200:** Same shape as list item, plus `departments: [{ "id": "uuid", "name": "Technology" }]`.
+
+#### POST /api/v1/utilities
+**Access:** root_admin only
+
+**Request:**
+```json
+{
+  "name": "string",
+  "description": "string",
+  "options": [{ "name": "string" }],
+  "calendarEnabled": true,
+  "calendarProvider": "google",
+  "calendarAddress": "string",
+  "calendarSyncMode": "meeting",
+  "departmentIds": ["uuid"]
+}
+```
+
+**Response 201:** Full utility object.
+
+**Side effects:** Inserts `department_utilities` rows for `departmentIds`. Calendar fields are required when `calendarEnabled = true` (see the `utilities` table CHECK constraint).
+
+#### PATCH /api/v1/utilities/:id
+**Access:** root_admin only
+
+**Request (partial):** Same shape as create. If `departmentIds` is present, replaces the `department_utilities` rows for this utility.
+
+**Response 200:** Updated utility object.
+
+#### DELETE /api/v1/utilities/:id
+**Access:** root_admin only
+
+**Response 204:** No content.
+**Response 409:** `{ "error": "Utility has pending or approved requests. Resolve them first." }`
+
+#### POST /api/v1/utilities/:id/options
+Add a bookable option.
+
+**Access:** root_admin only
+
+**Request:** `{ "name": "string" }`
+**Response 201:** `{ "id": "uuid", "name": "string" }`
+
+#### DELETE /api/v1/utilities/:id/options/:optionId
+**Access:** root_admin only
+
+**Response 204:** No content.
+**Response 409:** `{ "error": "Option has pending or approved requests. Resolve them first." }`
+
+---
+
+### 5.6 Utility Requests Module (`/api/v1/utility-requests`)
+
+A parallel, lighter-weight workflow to Tickets — requestors book a utility option from an approving department; a dept_head or root_admin approves/rejects/completes it. No priority or SLA engine; state changes are recorded to an append-only activity log instead of a comment-thread activity pill.
+
+#### GET /api/v1/utility-requests
+List utility requests with filters and pagination.
+
+**Access:** root_admin (all); dept_head (requests for own department **or** requests they made themselves); team_member (own requests only)
+
+**Query params:**
+- `departmentIds` — comma-separated UUIDs (root_admin only — other roles are pre-scoped server-side)
+- `utilityIds` — comma-separated UUIDs
+- `statuses` — comma-separated: `pending | approved | rejected | completed | cancelled`
+- `dateFrom`, `dateTo` — filters on `date` (YYYY-MM-DD)
+- `search` — matches request ID, utility name, or details
+- `page`, `limit`
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "utilityId": "uuid",
+      "utilityName": "Meeting Rooms",
+      "utilityOptionId": "uuid",
+      "utilityOptionName": "Boardroom",
+      "departmentId": "uuid",
+      "departmentName": "Facilities",
+      "requestorId": "uuid",
+      "requestorName": "string",
+      "date": "2026-07-05",
+      "startTime": "14:00",
+      "endTime": "15:30",
+      "status": "pending",
+      "createdAt": "ISO"
+    }
+  ],
+  "total": 4,
+  "page": 1,
+  "limit": 15
+}
+```
+
+#### GET /api/v1/utility-requests/:id
+**Access:** root_admin; dept_head (own dept); requestor
+
+**Response 200:**
+```json
+{
+  "id": "uuid",
+  "utilityId": "uuid",
+  "utilityOptionId": "uuid",
+  "departmentId": "uuid",
+  "requestorId": "uuid",
+  "date": "2026-07-05",
+  "startTime": "14:00",
+  "endTime": "15:30",
+  "details": "string",
+  "status": "pending",
+  "rejectionReason": null,
+  "createdAt": "ISO",
+  "updatedAt": "ISO",
+  "comments": [
+    {
+      "id": "uuid",
+      "requestId": "uuid",
+      "authorId": "uuid",
+      "content": "string",
+      "createdAt": "ISO",
+      "updatedAt": "ISO | null",
+      "isEdited": false,
+      "reactions": [{ "emoji": "👍", "userIds": ["uuid"] }],
+      "attachments": [{ "id": "uuid", "name": "string", "mimeType": "string", "sizeBytes": 1024, "url": "string" }]
+    }
+  ],
+  "log": [
+    { "id": "uuid", "timestamp": "ISO", "actorId": "uuid", "action": "created", "note": null }
+  ]
+}
+```
+
+#### POST /api/v1/utility-requests
+Create a new request.
+
+**Access:** All authenticated users
+
+**Request:**
+```json
+{
+  "utilityId": "uuid",
+  "utilityOptionId": "uuid",
+  "departmentId": "uuid",
+  "date": "2026-07-05",
+  "startTime": "14:00",
+  "endTime": "15:30",
+  "details": "string"
+}
+```
+
+**Response 201:** Full request object, `status: 'pending'`.
+
+**Response 400:** `{ "error": "This department does not manage the selected utility." }` — thrown if `departmentId` is not linked to `utilityId` via `department_utilities`.
+
+**Side effects:**
+1. Creates a `utility_request_logs` row: `action: 'created'`
+2. Creates a notification for the approving department's head (and root_admin) — type `utility_request_submitted`
+
+#### PATCH /api/v1/utility-requests/:id
+Edit request details.
+
+**Access:** Requestor only, and only while `status IN ('pending', 'approved')`
+
+**Request (partial):**
+```json
+{
+  "utilityOptionId": "uuid",
+  "date": "2026-07-06",
+  "startTime": "15:00",
+  "endTime": "16:00",
+  "details": "string"
+}
+```
+
+**Response 200:** Updated request.
+**Side effects:** Creates a `utility_request_logs` row: `action: 'updated'`, `note: 'Request details updated by requester.'`
+
+#### PATCH /api/v1/utility-requests/:id/approve
+**Access:** root_admin, dept_head (own dept) — only while `status = 'pending'`
+
+**Response 200:** Updated request, `status: 'approved'`.
+**Side effects:** Log entry `action: 'approved'`. Notification to requestor (`utility_request_approved`). If the utility has calendar sync enabled, create the calendar event/invite.
+
+#### PATCH /api/v1/utility-requests/:id/reject
+**Access:** root_admin, dept_head (own dept) — only while `status = 'pending'`
+
+**Request:** `{ "reason": "string" }`
+**Response 200:** Updated request, `status: 'rejected'`, `rejectionReason` set.
+**Side effects:** Log entry `action: 'rejected'`, `note: reason`. Notification to requestor (`utility_request_rejected`).
+
+#### PATCH /api/v1/utility-requests/:id/complete
+**Access:** root_admin, dept_head (own dept) — only while `status = 'approved'`
+
+**Response 200:** Updated request, `status: 'completed'`.
+**Side effects:** Log entry `action: 'completed'`. Notification to requestor (`utility_request_completed`).
+
+#### PATCH /api/v1/utility-requests/:id/cancel
+**Access:** Requestor only — only while `status IN ('pending', 'approved')`
+
+**Response 200:** Updated request, `status: 'cancelled'`.
+**Side effects:** Log entry `action: 'cancelled'`. If the utility has calendar sync enabled and the request was already approved, remove the calendar event.
+
+#### POST /api/v1/utility-requests/:id/comments
+**Access:** All users who can view the request
+
+**Request:** `multipart/form-data` — `content` (required), `files[]` (optional)
+**Response 201:** Full comment object.
+
+#### PATCH /api/v1/utility-requests/:id/comments/:commentId
+**Access:** Comment author only
+**Request:** `{ "content": "string" }`
+**Response 200:** Updated comment (`isEdited: true`).
+
+#### DELETE /api/v1/utility-requests/:id/comments/:commentId
+**Access:** Comment author or root_admin
+**Response 204:** No content.
+
+#### POST /api/v1/utility-requests/:id/comments/:commentId/reactions
+Toggle a reaction (add if not present, remove if already present).
+
+**Access:** All users who can view the request
+**Request:** `{ "emoji": "👍" }`
+**Response 200:** Updated reactions array.
+
+---
+
+### 5.7 Roster Module (`/api/v1/roster`)
 
 #### GET /api/v1/roster
 Get roster shifts.
@@ -1287,7 +1808,7 @@ Delete a shift.
 
 ---
 
-### 5.6 Notifications Module (`/api/v1/notifications`)
+### 5.8 Notifications Module (`/api/v1/notifications`)
 
 #### GET /api/v1/notifications
 Get notifications for the current user.
@@ -1354,7 +1875,7 @@ data: {}
 
 ---
 
-### 5.7 Payments Module (`/api/v1/payments`)
+### 5.9 Payments Module (`/api/v1/payments`)
 
 #### GET /api/v1/payments
 List payments with filters.
@@ -1385,7 +1906,7 @@ List payments with filters.
       "initiatedByName": "Kelechi Nwosu",
       "initiatedAt": "ISO",
       "completedAt": null,
-      "reference": "FD-PAY-2026-0023",
+      "reference": "BJ-PAY-2026-0023",
       "description": "string"
     }
   ],
@@ -1417,7 +1938,7 @@ Initiate a payment.
 **Response 201:** Full payment object.
 
 **Side effects:**
-1. Generates internal reference: `FD-PAY-<YEAR>-<SEQUENCE>`
+1. Generates internal reference: `BJ-PAY-<YEAR>-<SEQUENCE>`
 2. If `method = 'paystack'`: initializes a Paystack transaction, returns `authorizationUrl` in response
 3. Creates notification for ticket requestor (type: `payment_initiated`)
 4. Sends email/SMS to requestor
@@ -1455,7 +1976,7 @@ Paystack webhook receiver. Validates HMAC-SHA512 signature using `X-Paystack-Sig
 
 ---
 
-### 5.8 Analytics Module (`/api/v1/analytics`)
+### 5.10 Analytics Module (`/api/v1/analytics`)
 
 #### GET /api/v1/analytics
 Returns computed analytics data.
@@ -1558,7 +2079,7 @@ LIMIT 10;
 
 ---
 
-### 5.9 Settings Module (`/api/v1/settings`)
+### 5.11 Settings Module (`/api/v1/settings`)
 
 #### GET /api/v1/settings
 Get organization settings.
@@ -1568,7 +2089,7 @@ Get organization settings.
 **Response 200:**
 ```json
 {
-  "orgName": "FlowDesk",
+  "orgName": "Bet9ja",
   "orgLogoUrl": "https://res.cloudinary.com/.../logo.png",
   "paystackPublicKey": "pk_live_...",
   "paystackSecretKey": "sk_live_...",
@@ -1577,11 +2098,21 @@ Get organization settings.
     "teams": false,
     "sms": false,
     "whatsapp": false
+  },
+  "smtp": {
+    "provider": "office365",
+    "host": "smtp.office365.com",
+    "port": 587,
+    "encryption": "tls",
+    "username": "notifications@bet9ja.com",
+    "password": "••••••••••••••••",
+    "senderName": "Bet9ja Support",
+    "senderEmail": "no-reply@bet9ja.com"
   }
 }
 ```
 
-Note: `paystackSecretKey` is stored encrypted in DB and decrypted only for display. Never logged.
+Note: `paystackSecretKey` and `smtp.password` are stored encrypted in DB and decrypted only for display (masked in the UI behind a show/hide toggle). Never logged.
 
 #### PATCH /api/v1/settings
 Update organization settings.
@@ -1599,11 +2130,38 @@ Update organization settings.
     "teams": true,
     "sms": false,
     "whatsapp": false
+  },
+  "smtp": {
+    "provider": "gmail",
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "encryption": "tls",
+    "username": "string",
+    "password": "string",
+    "senderName": "string",
+    "senderEmail": "string"
   }
 }
 ```
 
 **Response 200:** Updated settings object.
+
+#### POST /api/v1/settings/smtp/test
+Send a test email through the (already-saved, or just-submitted-but-not-yet-saved) SMTP configuration, so an admin can verify credentials before committing to them.
+
+**Access:** root_admin only
+
+**Request:**
+```json
+{
+  "to": "recipient@example.com",
+  "smtp": { "provider": "office365", "host": "string", "port": 587, "encryption": "tls", "username": "string", "password": "string", "senderName": "string", "senderEmail": "string" }
+}
+```
+`smtp` is optional — omit it to test the currently saved configuration instead of an in-progress edit.
+
+**Response 200:** `{ "message": "Test email sent to recipient@example.com" }`
+**Response 400:** `{ "error": "Could not connect to SMTP server: <reason>" }`
 
 #### POST /api/v1/settings/logo
 Upload or replace the organization logo.
@@ -1614,11 +2172,11 @@ Upload or replace the organization logo.
 
 **Response 200:** `{ "logoUrl": "https://res.cloudinary.com/..." }`
 
-**Side effects:** Uploads to Cloudinary folder `flowdesk/org/logo`, deletes old logo if one existed.
+**Side effects:** Uploads to Cloudinary folder `bet9ja/org/logo`, deletes old logo if one existed.
 
 ---
 
-### 5.10 Files Module (`/api/v1/files`)
+### 5.12 Files Module (`/api/v1/files`)
 
 #### POST /api/v1/files/upload
 Upload a file and get back its Cloudinary URL. Used for standalone uploads before form submission.
@@ -1628,8 +2186,9 @@ Upload a file and get back its Cloudinary URL. Used for standalone uploads befor
 **Request:** `multipart/form-data`, field `file`
 
 **Query params:**
-- `context` — `ticket | comment | logo` (determines Cloudinary folder)
+- `context` — `ticket | comment | utility-request-comment | logo` (determines Cloudinary folder)
 - `ticketId` — UUID (required if `context=ticket` or `context=comment`)
+- `requestId` — UUID (required if `context=utility-request-comment`)
 
 **Response 201:**
 ```json
@@ -1638,8 +2197,8 @@ Upload a file and get back its Cloudinary URL. Used for standalone uploads befor
   "name": "vpn-error-log.txt",
   "mimeType": "text/plain",
   "sizeBytes": 4096,
-  "url": "https://res.cloudinary.com/flowdesk/...",
-  "cloudinaryId": "flowdesk/tickets/t-abc/vpn-error-log"
+  "url": "https://res.cloudinary.com/bet9ja/...",
+  "cloudinaryId": "bet9ja/tickets/t-abc/vpn-error-log"
 }
 ```
 
@@ -1652,7 +2211,7 @@ Delete a file (removes from Cloudinary and DB).
 
 ---
 
-### 5.11 Chat Module (`/api/v1/chat`)
+### 5.13 Chat Module (`/api/v1/chat`)
 
 #### GET /api/v1/chat/token
 Generate a Stream.io user token for the current user.
@@ -1745,7 +2304,7 @@ List the current user's channels (metadata from Postgres, real-time data from St
 
 ---
 
-### 5.12 Profile Module (`/api/v1/profile`)
+### 5.14 Profile Module (`/api/v1/profile`)
 
 #### GET /api/v1/profile
 Get the current user's full profile (alias for `GET /auth/me` but includes ticket summary).
@@ -1800,7 +2359,7 @@ Change the current user's own password via Keycloak.
 
 ### 6.1 Account Setup
 
-- Create a Cloudinary account with product environment: `flowdesk`
+- Create a Cloudinary account with product environment: `bet9ja`
 - Enable "Signed uploads" (never expose API secret in frontend)
 - Enable "Auto backups"
 - Set transformation limits appropriate for the plan
@@ -1808,7 +2367,7 @@ Change the current user's own password via Keycloak.
 ### 6.2 Folder Structure
 
 ```
-flowdesk/
+bet9ja/
   org/
     logo/               ← org logo
   tickets/
@@ -1817,6 +2376,11 @@ flowdesk/
       comments/
         <comment_id>/
           <original_filename>   ← comment attachments
+  utility-requests/
+    <request_id>/
+      comments/
+        <comment_id>/
+          <original_filename>   ← utility request comment attachments
 ```
 
 ### 6.3 Upload Flow
@@ -1867,7 +2431,7 @@ Stream.io handles:
 - Message reactions (via Stream's own reaction API)
 - File message attachments (we upload to Cloudinary first, pass URL as Stream attachment)
 
-The FlowDesk backend:
+The Bet9ja backend:
 - Manages user provisioning in Stream
 - Manages channel creation (server-side for auth)
 - Provides `GET /chat/token` for frontend client initialization
@@ -1895,7 +2459,7 @@ Users are provisioned in Stream when:
 User object in Stream:
 ```json
 {
-  "id": "<flowdesk_user_uuid>",
+  "id": "<bet9ja_user_uuid>",
   "name": "Segun Afolabi",
   "image": "https://ui-avatars.com/...",
   "role": "team_member",
@@ -1917,7 +2481,7 @@ When a user sends a file in chat:
     {
       "type": "file",
       "title": "rca-document.pdf",
-      "asset_url": "https://res.cloudinary.com/flowdesk/...",
+      "asset_url": "https://res.cloudinary.com/bet9ja/...",
       "mime_type": "application/pdf",
       "file_size": 1024000
     }
@@ -1956,7 +2520,7 @@ NotificationsService.createAndDispatch(event)
          │   NotificationWorker             │
          │                                  │
          │  For each recipient:             │
-         │  - if notifPrefEmail → Resend    │
+         │  - if notifPrefEmail → SMTP      │
          │  - if notifPrefSms → Twilio SMS  │
          │  - if notifPrefWhatsapp → Twilio │
          │  - if deptTeamsWebhook → HTTP    │
@@ -1977,18 +2541,41 @@ NotificationsService.createAndDispatch(event)
 | `sla_warning` | SLA cron job | Assignee + dept head | ✅ | ✅ | ✅ | — | ✅ |
 | `sla_breach` | SLA cron job | Assignee + dept head + root_admin | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `payment_initiated` | POST /payments | Ticket requestor | ✅ | ✅ | ✅ | — | — |
+| `utility_request_submitted` | POST /utility-requests | Approving department's head + root_admin | ✅ | ✅ | — | — | — |
+| `utility_request_approved` | PATCH /utility-requests/:id/approve | Requestor | ✅ | ✅ | — | — | — |
+| `utility_request_rejected` | PATCH /utility-requests/:id/reject | Requestor | ✅ | ✅ | — | — | — |
+| `utility_request_completed` | PATCH /utility-requests/:id/complete | Requestor | ✅ | ✅ | — | — | — |
 
-### 8.3 Email (Resend)
+### 8.3 Email (SMTP via Nodemailer)
 
-**Configuration:**
+Unlike every other integration in this document, email is **not** configured via environment variables. Root admins connect their own mail server from Settings → SMTP (see [5.11 Settings Module](#511-settings-module-apiv1settings)), and the backend uses [Nodemailer](https://nodemailer.com/)'s SMTP transport with whatever is stored on the `settings` row.
+
+**Why:** the original design (v1.0) hardcoded a Resend API key via env var. The frontend now ships an admin-facing SMTP configuration screen (provider presets for Microsoft 365 / Google Workspace / custom, host/port/encryption, credentials, sender identity, and a "Send Test Email" button), so the backend must read its mail config from the database instead of the environment.
+
+**Building the transport per send (or cached until settings change):**
+```typescript
+const settings = await settingsRepo.findOneOrFail();
+const transport = nodemailer.createTransport({
+  host: settings.smtpHost,
+  port: settings.smtpPort,
+  secure: settings.smtpEncryption === 'ssl',       // true for 465/SSL, false for STARTTLS/none
+  requireTLS: settings.smtpEncryption === 'tls',
+  auth: { user: settings.smtpUsername, pass: decrypt(settings.smtpPassword) },
+});
+
+await transport.sendMail({
+  from: `"${settings.smtpSenderName}" <${settings.smtpSenderEmail}>`,
+  to: recipient.email,
+  subject: notification.title,
+  html: renderTemplate(notification.type, templateVars),
+});
 ```
-RESEND_API_KEY=re_...
-EMAIL_FROM=notifications@flowdesk.io
-```
 
-**Templates (HTML emails):**
+If no SMTP configuration has been saved yet, email dispatch is skipped (logged, not thrown) — in-app notifications, SMS, WhatsApp and Teams are unaffected.
 
-All emails use a consistent HTML template with the FlowDesk branding. Use Resend's template API or inline HTML.
+**`POST /api/v1/settings/smtp/test`** builds the same transport ad hoc (from the request body if provided, else the saved settings) and sends a one-off message, so an admin can validate credentials before saving them.
+
+**Templates (HTML emails):** All emails use a consistent HTML template with the Bet9ja branding, rendered server-side and passed to `sendMail` as `html`.
 
 Template variables per notification type:
 - `ticket_assigned`: ticket title, ticket URL, assignee name, priority badge
@@ -1997,16 +2584,7 @@ Template variables per notification type:
 - `new_comment`: ticket title, comment snippet (first 200 chars), commenter name, reply URL
 - `sla_warning`: ticket title, time remaining, ticket URL, priority
 - `payment_initiated`: amount formatted (₦XX,XXX.XX), payment reference, linked ticket title
-
-**Implementation:**
-```typescript
-await resend.emails.send({
-  from: 'FlowDesk <notifications@flowdesk.io>',
-  to: recipient.email,
-  subject: notification.title,
-  html: renderTemplate(notification.type, templateVars),
-});
-```
+- `utility_request_submitted` / `_approved` / `_rejected` / `_completed`: utility + option name, date/time window, department name, requestor name, rejection reason (rejected only), request URL
 
 ### 8.4 SMS (Twilio)
 
@@ -2019,7 +2597,7 @@ TWILIO_PHONE_NUMBER=+1234567890
 
 SMS messages are short-form (max 160 chars):
 ```
-FlowDesk: [Ticket title] assigned to you. Priority: High. View: https://flowdesk.io/tickets/<id>
+Bet9ja: [Ticket title] assigned to you. Priority: High. View: https://bet9ja.com/tickets/<id>
 ```
 
 Only sent to users with `notifPrefSms = true` (derived from `phoneNumber` not null in our DB — note: we use `notifPrefWhatsapp` to gate WhatsApp and a separate column for SMS preference; see the extended notification prefs below).
@@ -2038,7 +2616,7 @@ TWILIO_WHATSAPP_FROM=whatsapp:+14155238886  (Twilio sandbox or approved number)
 await twilioClient.messages.create({
   from: process.env.TWILIO_WHATSAPP_FROM,
   to: `whatsapp:${user.phoneNumber}`,
-  body: `*FlowDesk*: ${notification.title}\n\n${notification.message}\n\nView: ${ticketUrl}`,
+  body: `*Bet9ja*: ${notification.title}\n\n${notification.message}\n\nView: ${ticketUrl}`,
 });
 ```
 
@@ -2054,7 +2632,7 @@ Payload format (Adaptive Card):
   "@type": "MessageCard",
   "@context": "https://schema.org/extensions",
   "themeColor": "4F6EF7",
-  "summary": "FlowDesk Notification",
+  "summary": "Bet9ja Notification",
   "sections": [
     {
       "activityTitle": "**Ticket Created: [title]**",
@@ -2070,7 +2648,7 @@ Payload format (Adaptive Card):
     {
       "@type": "OpenUri",
       "name": "View Ticket",
-      "targets": [{ "os": "default", "uri": "https://flowdesk.io/tickets/<id>" }]
+      "targets": [{ "os": "default", "uri": "https://bet9ja.com/tickets/<id>" }]
     }
   ]
 }
@@ -2168,13 +2746,22 @@ A background job (every 60 seconds) syncs `isOnline` from Redis to Postgres for 
 
 ### 11.1 Deadline Computation
 
-When a ticket is created:
+The SLA that applies to a ticket is the selected **request type's** SLA if one was chosen on creation, otherwise the **department's** default SLA:
+
 ```typescript
-const responseDeadline = new Date(ticket.createdAt.getTime() + dept.slaResponseMs);
-const resolutionDeadline = new Date(ticket.createdAt.getTime() + dept.slaResolutionMs);
+function effectiveSla(dept: Department, requestType: DepartmentRequestType | null): SLAConfig {
+  return requestType?.sla ?? dept.sla;
+}
 ```
 
-When a ticket is transferred, the deadlines are recomputed based on the **target department's SLA**, starting from the transfer timestamp:
+When a ticket is created:
+```typescript
+const sla = effectiveSla(dept, requestType);
+const responseDeadline = new Date(ticket.createdAt.getTime() + sla.responseMs);
+const resolutionDeadline = new Date(ticket.createdAt.getTime() + sla.resolutionMs);
+```
+
+When a ticket is transferred, the deadlines are recomputed based on the **target department's default SLA** (request types are per-department, so a transferred ticket loses its original request-type association and falls back to the target department's default), starting from the transfer timestamp:
 ```typescript
 const responseDeadline = new Date(transfer.timestamp.getTime() + targetDept.slaResponseMs);
 const resolutionDeadline = new Date(transfer.timestamp.getTime() + targetDept.slaResolutionMs);
@@ -2254,8 +2841,8 @@ if (hash !== req.headers['x-paystack-signature']) {
 ```typescript
 async generateReference(): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await paymentRepo.count({ where: { reference: Like(`FD-PAY-${year}-%`) } });
-  return `FD-PAY-${year}-${String(count + 1).padStart(4, '0')}`;
+  const count = await paymentRepo.count({ where: { reference: Like(`BJ-PAY-${year}-%`) } });
+  return `BJ-PAY-${year}-${String(count + 1).padStart(4, '0')}`;
 }
 ```
 
@@ -2267,20 +2854,20 @@ async generateReference(): Promise<string> {
 # App
 NODE_ENV=production
 PORT=3000
-APP_URL=https://flowdesk.io
+APP_URL=https://bet9ja.com
 API_PREFIX=api/v1
 
 # Database
-DATABASE_URL=postgresql://flowdesk:password@localhost:5432/flowdesk
+DATABASE_URL=postgresql://bet9ja:password@localhost:5432/bet9ja
 DATABASE_SSL=true
 
 # Redis
 REDIS_URL=redis://localhost:6379
 
 # Keycloak
-KEYCLOAK_URL=https://auth.flowdesk.io
-KEYCLOAK_REALM=flowdesk
-KEYCLOAK_CLIENT_ID=flowdesk-backend
+KEYCLOAK_URL=https://auth.bet9ja.com
+KEYCLOAK_REALM=bet9ja
+KEYCLOAK_CLIENT_ID=bet9ja-backend
 KEYCLOAK_CLIENT_SECRET=...
 KEYCLOAK_ADMIN_CLIENT_ID=admin-cli
 KEYCLOAK_ADMIN_USERNAME=admin
@@ -2291,13 +2878,12 @@ STREAM_API_KEY=...
 STREAM_API_SECRET=...
 
 # Cloudinary
-CLOUDINARY_CLOUD_NAME=flowdesk
+CLOUDINARY_CLOUD_NAME=bet9ja
 CLOUDINARY_API_KEY=...
 CLOUDINARY_API_SECRET=...
 
-# Resend (Email)
-RESEND_API_KEY=re_...
-EMAIL_FROM=notifications@flowdesk.io
+# Email (SMTP) — no env vars. The mail server connection is admin-configured at
+# runtime via Settings → SMTP and stored on the `settings` table (see 5.11, 8.3).
 
 # Twilio (SMS + WhatsApp)
 TWILIO_ACCOUNT_SID=AC...
@@ -2310,11 +2896,11 @@ PAYSTACK_SECRET_KEY=sk_live_...
 PAYSTACK_PUBLIC_KEY=pk_live_...
 PAYSTACK_WEBHOOK_SECRET=...
 
-# Encryption (for Paystack secret key at rest)
+# Encryption (for Paystack secret key and SMTP password at rest)
 ENCRYPTION_KEY=<32-byte-hex>
 
 # CORS
-CORS_ORIGINS=https://flowdesk.io,http://localhost:5174
+CORS_ORIGINS=https://bet9ja.com,http://localhost:5174
 
 # Swagger
 SWAGGER_ENABLED=true
@@ -2377,10 +2963,14 @@ src/
       departments.service.ts
       department.entity.ts
       department-member.entity.ts
+      department-request-type.entity.ts
+      department-utility.entity.ts
       dto/
         create-department.dto.ts
         update-department.dto.ts
         department-response.dto.ts
+        create-request-type.dto.ts
+        update-request-type.dto.ts
         
     tickets/
       tickets.module.ts
@@ -2397,6 +2987,31 @@ src/
         transfer-ticket.dto.ts
         create-comment.dto.ts
         ticket-filter.dto.ts
+        
+    utilities/
+      utilities.module.ts
+      utilities.controller.ts
+      utilities.service.ts
+      utility.entity.ts
+      utility-option.entity.ts
+      dto/
+        create-utility.dto.ts
+        update-utility.dto.ts
+        create-utility-option.dto.ts
+        
+    utility-requests/
+      utility-requests.module.ts
+      utility-requests.controller.ts
+      utility-requests.service.ts
+      utility-request.entity.ts
+      utility-request-comment.entity.ts
+      utility-request-log.entity.ts
+      dto/
+        create-utility-request.dto.ts
+        update-utility-request.dto.ts
+        reject-utility-request.dto.ts
+        create-utility-request-comment.dto.ts
+        utility-request-filter.dto.ts
         
     roster/
       roster.module.ts
@@ -2416,7 +3031,7 @@ src/
         notification.queue.ts
         notification.worker.ts
       channels/
-        email.channel.ts         (Resend)
+        email.channel.ts         (Nodemailer, transport built from settings.smtp*)
         sms.channel.ts           (Twilio)
         whatsapp.channel.ts      (Twilio)
         teams.channel.ts         (Webhook)
@@ -2440,8 +3055,10 @@ src/
       settings.controller.ts
       settings.service.ts
       settings.entity.ts
+      mailer.service.ts          (builds a Nodemailer transport from settings.smtp*)
       dto/
         update-settings.dto.ts
+        test-smtp.dto.ts
         
     files/
       files.module.ts
@@ -2493,6 +3110,13 @@ All TypeScript type mappings between frontend and backend:
 | `Attachment[]` | Separate `attachments` table | — |
 | `TransferEntry[]` | Separate `ticket_transfers` table | — |
 | `Comment[]` | Separate `comments` table | — |
+| `Department.requestTypes: RequestType[]` | Separate `department_request_types` table | — |
+| `Department.utilityIds: string[]` | Separate `department_utilities` join table | — |
+| `Ticket.requestType: { id, name } \| null` | Assembled from `request_type_id` (join) or `custom_request_type_name` | — |
+| `Utility.options: UtilityOption[]` | Separate `utility_options` table | — |
+| `UtilityRequest.comments: UtilityRequestComment[]` | Separate `utility_request_comments` table | — |
+| `UtilityRequestComment.reactions: Reaction[]` | Separate `utility_request_comment_reactions` table | — |
+| `UtilityRequest.log: UtilityRequestLogEntry[]` | Separate `utility_request_logs` table (append-only) | — |
 
 **Frontend `avatarInitials`** — not stored. Computed server-side:
 ```typescript
@@ -2519,8 +3143,8 @@ Cached in Redis with key `dept:active-count:<id>`, TTL 2 minutes.
 On first run, the NestJS bootstrap should:
 1. Run TypeORM migrations
 2. Check if `settings` table has a row; if not, `INSERT` the default singleton row
-3. Check if Keycloak realm `flowdesk` has users; if not, seed the demo users via Keycloak Admin API
-4. Seed departments, tickets, roster, payments, notifications matching the frontend mock data shapes
+3. Check if Keycloak realm `bet9ja` has users; if not, seed the demo users via Keycloak Admin API
+4. Seed departments (with their `department_request_types`), tickets, utilities (with `utility_options` and `department_utilities` links), utility requests, roster, payments, notifications — matching `src/mocks/*.ts` in the frontend
 
 Provide a `DatabaseSeeder` service (`npm run seed`) that resets and re-seeds all data from the mock arrays for development environments.
 

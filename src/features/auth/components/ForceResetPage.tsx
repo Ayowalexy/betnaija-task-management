@@ -3,8 +3,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
-import { Zap, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../../../api/auth';
+import logo from '../../../assets/logo.png';
 import { resetPasswordSchema } from '../schemas';
 import { usePasswordStrength } from '../hooks/usePasswordStrength';
 import type { ResetPasswordFormValues } from '../types';
@@ -82,10 +83,7 @@ export function ForceResetPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.logo}>
-          <div className={styles.logoIcon}>
-            <Zap size={20} />
-          </div>
-          <span className={styles.logoName}>FlowDesk</span>
+          <img src={logo} alt="Bet9ja" style={{ height: 48, objectFit: 'contain' }} />
         </div>
 
         <h1 className={styles.heading}>Set your password</h1>

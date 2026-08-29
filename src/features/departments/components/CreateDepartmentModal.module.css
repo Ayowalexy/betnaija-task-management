@@ -8,6 +8,41 @@
   gap: var(--space-5);
 }
 
+/* ── Wizard header (step indicator + caption) ── */
+
+.wizardHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.stepCaption {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/* ── Step pane ────────────────────────────────── */
+
+.stepPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 280px;
+}
+
+/* ── Utility checklist (Utilities step) ──────── */
+
+.utilityList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 /* ── Side-by-side row ────────────────────────── */
 
 .row {
@@ -177,4 +212,55 @@
 
 .choiceCard.selected .choiceCheckInner {
   opacity: 1;
+}
+
+/* ── Request types ────────────────────────────── */
+
+.requestTypeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.requestTypeCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.requestTypeCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.requestTypeIndex {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.requestTypeRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.requestTypeRemove:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }

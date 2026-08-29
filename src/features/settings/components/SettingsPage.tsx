@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import {
   Building2, Bell, CreditCard, Clock,
   Mail, MessageSquare, Phone,
-  Upload, Eye, EyeOff, Save, Shield,
+  Upload, Eye, EyeOff, Save, Shield, Server, Send,
 } from 'lucide-react';
 import { PageWrapper } from '../../../components/layout/PageWrapper.js';
 import { Tabs, Button, Input } from '../../../components/ui/index.js';
@@ -17,7 +17,23 @@ const TABS = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'payment',       label: 'Payment' },
   { id: 'sla',           label: 'SLA Defaults' },
+  { id: 'smtp',          label: 'SMTP' },
 ];
+
+type SmtpProvider = 'office365' | 'gmail' | 'custom';
+type SmtpEncryption = 'tls' | 'ssl' | 'none';
+
+const SMTP_PRESETS: Record<SmtpProvider, { host: string; port: string; encryption: SmtpEncryption }> = {
+  office365: { host: 'smtp.office365.com', port: '587', encryption: 'tls' },
+  gmail:     { host: 'smtp.gmail.com',     port: '587', encryption: 'tls' },
+  custom:    { host: '',                   port: '587', encryption: 'tls' },
+};
+
+const SMTP_PROVIDER_LABELS: Record<SmtpProvider, { name: string; sub: string }> = {
+  office365: { name: 'Microsoft 365',     sub: 'smtp.office365.com' },
+  gmail:     { name: 'Google Workspace',  sub: 'smtp.gmail.com'     },
+  custom:    { name: 'Custom SMTP',       sub: 'Enter your own host' },
+};
 
 /* ── Reusable section card ──────────────────────────────── */
 interface SectionCardProps {
@@ -104,7 +120,7 @@ function MaskedInput({ label, placeholder }: { label: string; placeholder?: stri
 export function SettingsPage(): ReactElement {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('general');
-  const [settings, setSettings] = useState<OrgSettings | null>(null);
+  const [, setSettings] = useState<OrgSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   // General tab state
@@ -179,6 +195,35 @@ export function SettingsPage(): ReactElement {
     } catch {
       toast({ type: 'error', message: 'Failed to save SLA settings' });
     }
+  }
+
+  // ── SMTP state ───────────────────────────────────────────────────────────
+  const [smtpProvider, setSmtpProvider] = useState<SmtpProvider>('office365');
+  const [smtpHost, setSmtpHost] = useState(SMTP_PRESETS.office365.host);
+  const [smtpPort, setSmtpPort] = useState(SMTP_PRESETS.office365.port);
+  const [smtpEncryption, setSmtpEncryption] = useState<SmtpEncryption>(SMTP_PRESETS.office365.encryption);
+  const [smtpUsername, setSmtpUsername] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpShowPassword, setSmtpShowPassword] = useState(false);
+  const [smtpSenderName, setSmtpSenderName] = useState('');
+  const [smtpSenderEmail, setSmtpSenderEmail] = useState('');
+  const [smtpTestEmail, setSmtpTestEmail] = useState('');
+  const [smtpTesting, setSmtpTesting] = useState(false);
+
+  function selectSmtpProvider(provider: SmtpProvider): void {
+    setSmtpProvider(provider);
+    const preset = SMTP_PRESETS[provider];
+    setSmtpHost(preset.host);
+    setSmtpPort(preset.port);
+    setSmtpEncryption(preset.encryption);
+  }
+
+  async function sendTestEmail(): Promise<void> {
+    if (!smtpTestEmail) return;
+    setSmtpTesting(true);
+    await new Promise((r) => setTimeout(r, 1200));
+    setSmtpTesting(false);
+    toast({ type: 'success', message: `Test email sent to ${smtpTestEmail}` });
   }
 
   if (loading) {
@@ -319,9 +364,135 @@ export function SettingsPage(): ReactElement {
         </SectionCard>
       )}
 
-      {/* Display current org info */}
-      {settings && (
-        <div style={{ display: 'none' }} aria-hidden="true" data-settings-id={settings.id} />
+      {activeTab === 'smtp' && (
+        <SectionCard
+          icon={<Server size={20} />}
+          title="SMTP Configuration"
+          description="Configure the outgoing mail server used for all platform notifications"
+          onSave={() => toast({ type: 'success', message: 'SMTP settings saved' })}
+          saveLabel="Save SMTP Settings"
+        >
+          <>
+            {/* Provider presets */}
+            <div>
+              <span className={styles.fieldLabel}>Mail Provider</span>
+              <div className={styles.smtpProviders}>
+                {(Object.keys(SMTP_PROVIDER_LABELS) as SmtpProvider[]).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={[styles.smtpProvider, smtpProvider === key ? styles.smtpProviderActive : ''].filter(Boolean).join(' ')}
+                    onClick={() => selectSmtpProvider(key)}
+                  >
+                    <span className={styles.smtpProviderName}>{SMTP_PROVIDER_LABELS[key].name}</span>
+                    <span className={styles.smtpProviderSub}>{SMTP_PROVIDER_LABELS[key].sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Host + Port */}
+            <div className={styles.smtpGrid}>
+              <Input
+                label="SMTP Host"
+                placeholder="smtp.example.com"
+                value={smtpHost}
+                onChange={(e) => setSmtpHost(e.target.value)}
+              />
+              <Input
+                label="Port"
+                type="number"
+                placeholder="587"
+                value={smtpPort}
+                onChange={(e) => setSmtpPort(e.target.value)}
+                wrapperClassName={styles.smtpPortField}
+              />
+            </div>
+
+            {/* Encryption */}
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Encryption</span>
+              <select
+                className={styles.smtpSelect}
+                value={smtpEncryption}
+                onChange={(e) => setSmtpEncryption(e.target.value as SmtpEncryption)}
+              >
+                <option value="tls">STARTTLS (recommended)</option>
+                <option value="ssl">SSL / TLS</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+
+            {/* Auth credentials */}
+            <div className={styles.field}>
+              <Input
+                label="Username / Account Email"
+                type="email"
+                placeholder="notifications@bet9ja.com"
+                value={smtpUsername}
+                onChange={(e) => setSmtpUsername(e.target.value)}
+              />
+            </div>
+            <div className={styles.field}>
+              <Input
+                label="Password / App Password"
+                type={smtpShowPassword ? 'text' : 'password'}
+                placeholder="••••••••••••••••"
+                value={smtpPassword}
+                onChange={(e) => setSmtpPassword(e.target.value)}
+                rightIcon={
+                  <button type="button" className={styles.eyeBtn} onClick={() => setSmtpShowPassword((s) => !s)} aria-label={smtpShowPassword ? 'Hide' : 'Show'}>
+                    {smtpShowPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                }
+              />
+              <p className={styles.smtpHint}>For Gmail, use an App Password instead of your account password.</p>
+            </div>
+
+            {/* Sender identity */}
+            <div className={styles.smtpDivider}>
+              <span>Sender Identity</span>
+            </div>
+            <div className={styles.smtpGrid}>
+              <Input
+                label="Sender Name"
+                placeholder="Bet9ja Support"
+                value={smtpSenderName}
+                onChange={(e) => setSmtpSenderName(e.target.value)}
+              />
+              <Input
+                label="Sender Email"
+                type="email"
+                placeholder="no-reply@bet9ja.com"
+                value={smtpSenderEmail}
+                onChange={(e) => setSmtpSenderEmail(e.target.value)}
+              />
+            </div>
+
+            {/* Test email */}
+            <div className={styles.smtpDivider}>
+              <span>Send Test Email</span>
+            </div>
+            <div className={styles.smtpTestRow}>
+              <Input
+                label=""
+                type="email"
+                placeholder="recipient@example.com"
+                value={smtpTestEmail}
+                onChange={(e) => setSmtpTestEmail(e.target.value)}
+                wrapperClassName={styles.smtpTestInput}
+              />
+              <Button
+                variant="outline"
+                leftIcon={<Send size={14} />}
+                onClick={sendTestEmail}
+                disabled={smtpTesting || !smtpTestEmail}
+              >
+                {smtpTesting ? 'Sending…' : 'Send Test'}
+              </Button>
+            </div>
+          </>
+        </SectionCard>
       )}
     </PageWrapper>
   );

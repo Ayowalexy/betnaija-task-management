@@ -97,7 +97,7 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps):
         <Input
           label="Email Address"
           type="email"
-          placeholder="user@flowdesk.io"
+          placeholder="user@bet9ja.com"
           error={errors.email?.message}
           {...register('email')}
         />

@@ -54,7 +54,7 @@ export function TeamMemberDashboard() {
     ]).then(([ticketsRes, shiftsRes, notifsRes]) => {
       setAllTickets(ticketsRes.data);
       const userId = currentUser?.id;
-      const shifts = shiftsRes
+      const shifts = shiftsRes.data
         .filter((s) => {
           const d = new Date(s.date);
           return s.userId === userId && d >= TODAY && d <= WEEK_END;

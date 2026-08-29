@@ -1,0 +1,107 @@
+/* ────────────────────────────────────────────────
+   StepIndicator
+──────────────────────────────────────────────── */
+
+.wrapper {
+  padding-bottom: var(--space-2);
+}
+
+.list {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.item:last-child {
+  flex: 0 0 auto;
+}
+
+.stepBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.stepBtn:disabled {
+  cursor: default;
+}
+
+.circle {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  background: var(--color-bg-muted);
+  color: var(--color-text-tertiary);
+  border: 2px solid var(--color-border-default);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
+}
+
+.circle.current {
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.circle.completed {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.labelCurrent {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.connector {
+  flex: 1;
+  height: 2px;
+  background: var(--color-border-default);
+  margin: 0 var(--space-2);
+  margin-bottom: 22px; /* align with circle center, offset for label row */
+  transition: background var(--transition-base);
+}
+
+.connectorDone {
+  background: var(--color-primary);
+}
+
+@media (max-width: 560px) {
+  .label {
+    display: none;
+  }
+
+  .connector {
+    margin-bottom: 0;
+  }
+}

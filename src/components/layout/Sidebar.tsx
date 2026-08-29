@@ -11,6 +11,8 @@ import {
   Settings,
   Calendar,
   Plus,
+  Wrench,
+  ClipboardList,
   User,
   ChevronLeft,
   ChevronRight,
@@ -21,6 +23,7 @@ import type { UserRole } from '../../types/index';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
 import { useNotifications } from '../../hooks/useNotifications';
+import logo from '../../assets/logo.png';
 import styles from './Sidebar.module.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -33,19 +36,6 @@ interface NavEntry {
 }
 
 type NavStructure = Array<NavEntry | 'divider'>;
-
-// ── Logo SVG ──────────────────────────────────────────────────────────────
-
-function FlowDeskLogo(): ReactElement {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="7" height="7" rx="2" fill="currentColor" />
-      <rect x="10" y="1" width="7" height="7" rx="2" fill="currentColor" opacity="0.6" />
-      <rect x="1" y="10" width="7" height="7" rx="2" fill="currentColor" opacity="0.6" />
-      <rect x="10" y="10" width="7" height="7" rx="2" fill="currentColor" opacity="0.35" />
-    </svg>
-  );
-}
 
 // ── Role label ─────────────────────────────────────────────────────────────
 
@@ -75,6 +65,8 @@ export function Sidebar(): ReactElement {
         { label: 'Dashboard', to: '/dashboard', icon: <LayoutDashboard size={18} /> },
         { label: 'All Tickets', to: '/tickets', icon: <Ticket size={18} /> },
         { label: 'Departments', to: '/departments', icon: <Building2 size={18} /> },
+        { label: 'Utility', to: '/utilities', icon: <Wrench size={18} /> },
+        { label: 'Utility Request', to: '/utility-requests', icon: <ClipboardList size={18} /> },
         { label: 'Users', to: '/users', icon: <Users size={18} /> },
         { label: 'Analytics', to: '/analytics', icon: <BarChart3 size={18} /> },
         { label: 'Chat', to: '/chat', icon: <MessageSquare size={18} />, badge: unreadChats },
@@ -87,6 +79,7 @@ export function Sidebar(): ReactElement {
       return [
         { label: 'Dashboard', to: '/dashboard', icon: <LayoutDashboard size={18} /> },
         { label: 'Dept Tickets', to: '/tickets', icon: <Ticket size={18} /> },
+        { label: 'Utility Request', to: '/utility-requests', icon: <ClipboardList size={18} /> },
         { label: 'Team Roster', to: '/roster', icon: <Calendar size={18} /> },
         { label: 'Team Members', to: '/team', icon: <Users size={18} /> },
         { label: 'Analytics', to: '/analytics', icon: <BarChart3 size={18} /> },
@@ -101,6 +94,7 @@ export function Sidebar(): ReactElement {
       { label: 'My Dashboard', to: '/dashboard', icon: <LayoutDashboard size={18} /> },
       { label: 'My Tickets', to: '/tickets', icon: <Ticket size={18} /> },
       { label: 'Create Ticket', to: '/tickets/new', icon: <Plus size={18} /> },
+      { label: 'Utility Request', to: '/utility-requests', icon: <ClipboardList size={18} /> },
       { label: 'Chat', to: '/chat', icon: <MessageSquare size={18} />, badge: unreadChats },
       { label: 'Notifications', to: '/notifications', icon: <Bell size={18} />, badge: unreadNotifs },
       'divider',
@@ -136,10 +130,7 @@ export function Sidebar(): ReactElement {
       >
         {/* Logo */}
         <div className={styles.logoArea}>
-          <div className={styles.logoIcon}>
-            <FlowDeskLogo />
-          </div>
-          <span className={styles.logoText}>FlowDesk</span>
+          <img src={logo} alt="Bet9ja" className={styles.logoImg} />
         </div>
 
         {/* Collapse toggle */}
