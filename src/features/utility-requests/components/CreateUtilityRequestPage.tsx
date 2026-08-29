@@ -19,6 +19,7 @@ import { getUtilityById } from '../../../mocks/utilities.js';
 import type { UtilityRequest } from '../../../types/index.js';
 import { createUtilityRequestSchema } from '../schemas.js';
 import type { CreateUtilityRequestFormData } from '../schemas.js';
+import { START_TIME_OPTIONS, DURATION_OPTIONS, computeEndTime, formatTimeLabel } from '../timeOptions.js';
 import styles from './CreateUtilityRequestPage.module.css';
 
 interface UtilityPreviewProps {
@@ -71,7 +72,7 @@ function UtilityRequestPreview({ isOpen, onClose, onSubmit, data, isSubmitting }
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Time</span>
           <span className={styles.previewValue}>
-            {data.startTime || '—'} – {data.endTime || '—'}
+            {data.startTime ? formatTimeLabel(data.startTime) : '—'} – {data.endTime ? formatTimeLabel(data.endTime) : '—'}
           </span>
         </div>
         <div className={styles.previewRow}>
@@ -116,11 +117,14 @@ export function CreateUtilityRequestPage() {
     },
   });
 
+  const [duration, setDuration] = React.useState('');
+
   const watchedValues = useWatch({ control });
   const selectedUtilityId = watchedValues.utilityId ?? '';
   const selectedUtility = selectedUtilityId ? getUtilityById(selectedUtilityId) : null;
   const departmentsForUtility = selectedUtilityId ? getDepartmentsForUtility(selectedUtilityId) : [];
   const optionChoices = (selectedUtility?.options ?? []).map((o) => ({ value: o.id, label: o.name }));
+  const startTime = watchedValues.startTime ?? '';
 
   const prevUtilityIdRef = React.useRef(selectedUtilityId);
 
@@ -131,6 +135,14 @@ export function CreateUtilityRequestPage() {
     const depts = selectedUtilityId ? getDepartmentsForUtility(selectedUtilityId) : [];
     setValue('departmentId', depts.length === 1 ? depts[0].id : '');
   }, [selectedUtilityId, setValue]);
+
+  React.useEffect(() => {
+    if (!startTime || !duration) {
+      setValue('endTime', '');
+      return;
+    }
+    setValue('endTime', computeEndTime(startTime, Number(duration)), { shouldValidate: true });
+  }, [startTime, duration, setValue]);
 
   function onSubmit(data: CreateUtilityRequestFormData) {
     if (!currentUser) return;
@@ -239,19 +251,35 @@ export function CreateUtilityRequestPage() {
                 error={errors.date?.message}
                 {...register('date')}
               />
-              <Input
-                label="Start Time *"
-                type="time"
-                error={errors.startTime?.message}
-                {...register('startTime')}
+              <Controller
+                name="startTime"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    label="Start Time *"
+                    options={START_TIME_OPTIONS}
+                    placeholder="Select a start time…"
+                    error={errors.startTime?.message}
+                    {...field}
+                  />
+                )}
               />
-              <Input
-                label="End Time *"
-                type="time"
+              <Select
+                label="Duration *"
+                options={DURATION_OPTIONS}
+                placeholder="Select a duration…"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
                 error={errors.endTime?.message}
-                {...register('endTime')}
               />
             </div>
+
+            {startTime && duration && (
+              <div className={styles.deptReadonly}>
+                <span className={styles.deptReadonlyLabel}>Ends at</span>
+                <span className={styles.deptReadonlyValue}>{formatTimeLabel(computeEndTime(startTime, Number(duration)))}</span>
+              </div>
+            )}
 
             <Textarea
               label="Details *"

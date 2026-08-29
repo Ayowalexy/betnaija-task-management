@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useEffect, useState, type ReactElement } from 'react';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal } from '../../../components/ui/index.js';
 import { Button } from '../../../components/ui/index.js';
@@ -10,6 +10,21 @@ import type { UtilityRequest } from '../../../types/index.js';
 import { getUtilityById } from '../../../mocks/utilities.js';
 import { editUtilityRequestSchema } from '../schemas.js';
 import type { EditUtilityRequestFormData } from '../schemas.js';
+import { START_TIME_OPTIONS, DURATION_OPTIONS, computeEndTime } from '../timeOptions.js';
+
+function minutesBetween(startTime: string, endTime: string): number {
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
+
+function closestDuration(minutes: number): string {
+  if (minutes <= 0) return '';
+  const closest = DURATION_OPTIONS.reduce((best, opt) =>
+    Math.abs(Number(opt.value) - minutes) < Math.abs(Number(best.value) - minutes) ? opt : best,
+  );
+  return closest.value;
+}
 
 interface EditUtilityRequestModalProps {
   isOpen: boolean;
@@ -32,6 +47,7 @@ export function EditUtilityRequestModal({
     handleSubmit,
     control,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<EditUtilityRequestFormData>({
     resolver: zodResolver(editUtilityRequestSchema),
@@ -43,6 +59,20 @@ export function EditUtilityRequestModal({
       details: request.details,
     },
   });
+
+  const [duration, setDuration] = useState(() =>
+    closestDuration(minutesBetween(request.startTime, request.endTime)),
+  );
+  const startTime = useWatch({ control, name: 'startTime' });
+
+  useEffect(() => {
+    setDuration(closestDuration(minutesBetween(request.startTime, request.endTime)));
+  }, [request.id, request.startTime, request.endTime]);
+
+  useEffect(() => {
+    if (!startTime || !duration) return;
+    setValue('endTime', computeEndTime(startTime, Number(duration)), { shouldValidate: true });
+  }, [startTime, duration, setValue]);
 
   function handleClose(): void {
     reset();
@@ -93,8 +123,27 @@ export function EditUtilityRequestModal({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
           <Input label="Date" type="date" error={errors.date?.message} {...register('date')} />
-          <Input label="Start Time" type="time" error={errors.startTime?.message} {...register('startTime')} />
-          <Input label="End Time" type="time" error={errors.endTime?.message} {...register('endTime')} />
+          <Controller
+            name="startTime"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Start Time"
+                options={START_TIME_OPTIONS}
+                placeholder="Select a start time…"
+                error={errors.startTime?.message}
+                {...field}
+              />
+            )}
+          />
+          <Select
+            label="Duration"
+            options={DURATION_OPTIONS}
+            placeholder="Select a duration…"
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            error={errors.endTime?.message}
+          />
         </div>
 
         <Textarea
