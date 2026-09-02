@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { User, Theme } from '../types/index.js';
 import { authApi } from '../api/auth.js';
 import { clearTokens, getAccessToken } from '../lib/apiClient.js';
+import { connectStreamUser, disconnectStreamUser } from '../lib/streamChat.js';
 
 interface AuthStore {
   currentUser: User | null;
@@ -53,6 +54,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const user = await authApi.me();
       set({ currentUser: user, isAuthenticated: true, isInitializing: false });
+      void connectStreamUser(user);
     } catch {
       clearTokens();
       set({ isInitializing: false });
@@ -63,11 +65,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
     await authApi.login(email, password);
     const user = await authApi.me();
     set({ currentUser: user, isAuthenticated: true });
+    void connectStreamUser(user);
   },
 
   logout: async () => {
     await authApi.logout();
     set({ currentUser: null, isAuthenticated: false });
+    void disconnectStreamUser();
   },
 
   setCurrentUser: (user: User) => {

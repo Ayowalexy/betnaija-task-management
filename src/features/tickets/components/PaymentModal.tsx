@@ -10,35 +10,37 @@ interface PaymentModalProps {
   ticketId: string;
 }
 
+const EMPTY_PAYMENT_FORM: { amount: string; description: string; method: 'bank_transfer' | 'paystack' } = {
+  amount: '',
+  description: '',
+  method: 'bank_transfer',
+};
+
 export function PaymentModal({ isOpen, onClose, ticketId: _ticketId }: PaymentModalProps) {
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [method, setMethod] = useState<'bank_transfer' | 'paystack'>('bank_transfer');
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState({ form: EMPTY_PAYMENT_FORM, submitting: false });
+  const { form, submitting } = state;
   const { toast } = useToast();
 
   function handleClose() {
-    setAmount('');
-    setDescription('');
-    setMethod('bank_transfer');
+    setState({ form: EMPTY_PAYMENT_FORM, submitting: false });
     onClose();
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!amount || Number(amount) <= 0) return;
-    setLoading(true);
+    if (!form.amount || Number(form.amount) <= 0) return;
+    setState((s) => ({ ...s, submitting: true }));
     // Simulate async operation
     await new Promise<void>((res) => setTimeout(res, 800));
     toast({ type: 'success', message: 'Payment initiated successfully.' });
-    setLoading(false);
+    setState((s) => ({ ...s, submitting: false }));
     handleClose();
   }
 
   const footer = (
     <>
-      <Button variant="secondary" onClick={handleClose} disabled={loading}>Cancel</Button>
-      <Button type="submit" form="payment-form" loading={loading} disabled={!amount || Number(amount) <= 0}>
+      <Button variant="secondary" onClick={handleClose} disabled={submitting}>Cancel</Button>
+      <Button type="submit" form="payment-form" loading={submitting} disabled={!form.amount || Number(form.amount) <= 0}>
         Initiate Payment
       </Button>
     </>
@@ -53,8 +55,8 @@ export function PaymentModal({ isOpen, onClose, ticketId: _ticketId }: PaymentMo
             id="pay-amount"
             type="number"
             className={styles.input}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            value={form.amount}
+            onChange={(e) => setState((s) => ({ ...s, form: { ...s.form, amount: e.target.value } }))}
             placeholder="0.00"
             min="1"
             step="0.01"
@@ -66,8 +68,8 @@ export function PaymentModal({ isOpen, onClose, ticketId: _ticketId }: PaymentMo
           <textarea
             id="pay-desc"
             className={styles.textarea}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={form.description}
+            onChange={(e) => setState((s) => ({ ...s, form: { ...s.form, description: e.target.value } }))}
             placeholder="Payment description…"
             rows={2}
           />
@@ -80,8 +82,8 @@ export function PaymentModal({ isOpen, onClose, ticketId: _ticketId }: PaymentMo
                 type="radio"
                 name="method"
                 value="bank_transfer"
-                checked={method === 'bank_transfer'}
-                onChange={() => setMethod('bank_transfer')}
+                checked={form.method === 'bank_transfer'}
+                onChange={() => setState((s) => ({ ...s, form: { ...s.form, method: 'bank_transfer' } }))}
               />
               Bank Transfer
             </label>
@@ -90,8 +92,8 @@ export function PaymentModal({ isOpen, onClose, ticketId: _ticketId }: PaymentMo
                 type="radio"
                 name="method"
                 value="paystack"
-                checked={method === 'paystack'}
-                onChange={() => setMethod('paystack')}
+                checked={form.method === 'paystack'}
+                onChange={() => setState((s) => ({ ...s, form: { ...s.form, method: 'paystack' } }))}
               />
               Paystack
             </label>

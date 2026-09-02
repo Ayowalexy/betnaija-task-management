@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/index';
 import { useToast } from '@/hooks/useToast';
@@ -12,15 +13,16 @@ interface TransferModalProps {
   onClose: () => void;
   ticketId: string;
   currentDeptId: string;
-  onRefresh: () => void;
 }
 
-export function TransferModal({ isOpen, onClose, ticketId, currentDeptId, onRefresh }: TransferModalProps) {
-  const [toDeptId, setToDeptId] = useState('');
-  const [note, setNote] = useState('');
-  const [loading, setLoading] = useState(false);
+const EMPTY_TRANSFER_FORM = { toDeptId: '', note: '' };
+
+export function TransferModal({ isOpen, onClose, ticketId, currentDeptId }: TransferModalProps) {
+  const [state, setState] = useState({ form: EMPTY_TRANSFER_FORM, submitting: false });
+  const { form, submitting } = state;
   const [departments, setDepartments] = useState<Department[]>([]);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -30,31 +32,33 @@ export function TransferModal({ isOpen, onClose, ticketId, currentDeptId, onRefr
   const otherDepts = departments.filter((d) => d.id !== currentDeptId);
 
   function handleClose() {
-    setToDeptId('');
-    setNote('');
+    setState({ form: EMPTY_TRANSFER_FORM, submitting: false });
     onClose();
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!toDeptId) return;
-    setLoading(true);
+    if (!form.toDeptId) return;
+    setState((s) => ({ ...s, submitting: true }));
     try {
-      await ticketsApi.transfer(ticketId, toDeptId, note);
+      await ticketsApi.transfer(ticketId, form.toDeptId, form.note);
       toast({ type: 'success', message: 'Ticket transferred successfully.' });
       handleClose();
-      onRefresh();
+      // The ticket usually no longer belongs to the department that granted access to whoever
+      // just transferred it — re-fetching in place would 403/404 and flash "not found". Go back
+      // to the list instead of staying on a page that may no longer be viewable.
+      navigate('/tickets');
     } catch {
       toast({ type: 'error', message: 'Failed to transfer ticket.' });
     } finally {
-      setLoading(false);
+      setState((s) => ({ ...s, submitting: false }));
     }
   }
 
   const footer = (
     <>
-      <Button variant="secondary" onClick={handleClose} disabled={loading}>Cancel</Button>
-      <Button type="submit" form="transfer-form" loading={loading} disabled={!toDeptId}>Transfer</Button>
+      <Button variant="secondary" onClick={handleClose} disabled={submitting}>Cancel</Button>
+      <Button type="submit" form="transfer-form" loading={submitting} disabled={!form.toDeptId}>Transfer</Button>
     </>
   );
 
@@ -66,8 +70,8 @@ export function TransferModal({ isOpen, onClose, ticketId, currentDeptId, onRefr
           <select
             id="transfer-dept"
             className={styles.select}
-            value={toDeptId}
-            onChange={(e) => setToDeptId(e.target.value)}
+            value={form.toDeptId}
+            onChange={(e) => setState((s) => ({ ...s, form: { ...s.form, toDeptId: e.target.value } }))}
             required
           >
             <option value="">Select department…</option>
@@ -81,8 +85,8 @@ export function TransferModal({ isOpen, onClose, ticketId, currentDeptId, onRefr
           <textarea
             id="transfer-note"
             className={styles.textarea}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            value={form.note}
+            onChange={(e) => setState((s) => ({ ...s, form: { ...s.form, note: e.target.value } }))}
             placeholder="Reason for transfer (optional)…"
             rows={3}
           />

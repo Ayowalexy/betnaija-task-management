@@ -33,10 +33,10 @@ export function MessageBubble({ message, isOwn, sender, showAvatar }: MessageBub
           {message.attachments.length > 0 && (
             <div className={styles.attachments}>
               {message.attachments.map((att) => (
-                <span key={att.id} className={styles.attachChip}>
+                <a key={att.id} href={att.url} target="_blank" rel="noreferrer" className={styles.attachChip}>
                   <Paperclip size={11} />
                   {att.name}
-                </span>
+                </a>
               ))}
             </div>
           )}

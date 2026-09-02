@@ -151,6 +151,57 @@
   gap: var(--space-3);
 }
 
+/* ── Utility list ─────────────────────────────── */
+
+.utilityList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Request type list ────────────────────────── */
+
+.requestTypeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.requestTypeCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.requestTypeCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.requestTypeCardHeader > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.requestTypeName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.requestTypeActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .memberRow {
   display: flex;
   align-items: center;

@@ -17,11 +17,25 @@ export function SLACountdown({
   slaDurationMs,
   variant = 'pill',
 }: SLACountdownProps): ReactElement | null {
-  // Derive createdAt + duration from deadline if needed
-  const resolvedCreatedAt = deadline ? deadline : (createdAt ?? '');
-  const resolvedDurationMs = deadline
-    ? Math.max(0, new Date(deadline).getTime() - Date.now())
-    : (slaDurationMs ?? 0);
+  // A deadline alone isn't enough to know how much of the window has elapsed — we need
+  // the actual start time too, otherwise "elapsed" and "duration" both drift with the
+  // clock and cancel out, permanently reporting ~0% elapsed (see the bug this fixed).
+  let resolvedCreatedAt: string;
+  let resolvedDurationMs: number;
+  if (deadline && createdAt) {
+    resolvedCreatedAt = createdAt;
+    resolvedDurationMs = Math.max(0, new Date(deadline).getTime() - new Date(createdAt).getTime());
+  } else if (createdAt) {
+    resolvedCreatedAt = createdAt;
+    resolvedDurationMs = slaDurationMs ?? 0;
+  } else if (deadline) {
+    // No createdAt available — can't show real progress, so just count down to the deadline.
+    resolvedCreatedAt = new Date().toISOString();
+    resolvedDurationMs = Math.max(0, new Date(deadline).getTime() - Date.now());
+  } else {
+    resolvedCreatedAt = '';
+    resolvedDurationMs = 0;
+  }
 
   const { timeRemaining, percentElapsed, status } = useSLACountdown(
     resolvedCreatedAt,

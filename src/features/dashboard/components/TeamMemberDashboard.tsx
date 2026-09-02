@@ -35,24 +35,27 @@ function notifIconClass(type: Notification['type']): string {
   return styles.iconBlue;
 }
 
+interface DashboardState {
+  allTickets: TicketType[];
+  upcomingShifts: Shift[];
+  recentNotifs: Notification[];
+  loading: boolean;
+}
+const INITIAL_DASHBOARD: DashboardState = { allTickets: [], upcomingShifts: [], recentNotifs: [], loading: true };
+
 export function TeamMemberDashboard() {
   const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
 
-  const [allTickets, setAllTickets] = useState<TicketType[]>([]);
-  const [upcomingShifts, setUpcomingShifts] = useState<Shift[]>([]);
-  const [recentNotifs, setRecentNotifs] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const currentYearMonth = TODAY.toISOString().slice(0, 7);
+  const [dashboard, setDashboard] = useState<DashboardState>(INITIAL_DASHBOARD);
+  const { allTickets, upcomingShifts, recentNotifs, loading } = dashboard;
 
   useEffect(() => {
     Promise.all([
       ticketsApi.list({ page: 1, limit: 25 }),
-      rosterApi.list({ month: currentYearMonth }),
+      rosterApi.list(), // defaults to the current calendar month server-side
       notificationsApi.list({ limit: 5 }),
     ]).then(([ticketsRes, shiftsRes, notifsRes]) => {
-      setAllTickets(ticketsRes.data);
       const userId = currentUser?.id;
       const shifts = shiftsRes.data
         .filter((s) => {
@@ -60,10 +63,13 @@ export function TeamMemberDashboard() {
           return s.userId === userId && d >= TODAY && d <= WEEK_END;
         })
         .sort((a, b) => a.date.localeCompare(b.date));
-      setUpcomingShifts(shifts);
-      setRecentNotifs(notifsRes.data.slice(0, 4));
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      setDashboard({
+        allTickets: ticketsRes.data,
+        upcomingShifts: shifts,
+        recentNotifs: notifsRes.data.slice(0, 4),
+        loading: false,
+      });
+    }).catch(() => setDashboard((d) => ({ ...d, loading: false })));
   }, [currentUser?.id]);
 
   if (!currentUser) return null;

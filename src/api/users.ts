@@ -32,7 +32,21 @@ export interface UpdateUserPayload {
   };
 }
 
+export interface DirectoryUser {
+  id: string;
+  name: string;
+  email: string;
+  avatarInitials: string;
+  avatarColor: string;
+  isOnline: boolean;
+}
+
 export const usersApi = {
+  /** Minimal, cross-department user list — for chat, where department-scoped list() would hide anyone outside your own department. */
+  listDirectory: async (): Promise<DirectoryUser[]> => {
+    return apiGet<DirectoryUser[]>('/users/directory');
+  },
+
   list: async (params?: {
     search?: string;
     departmentId?: string;

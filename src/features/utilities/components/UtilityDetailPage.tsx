@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Save, ListChecks, CalendarCheck2, CalendarOff } from 'lucide-react';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
 import { Tabs } from '@/components/ui/index.js';
@@ -12,10 +12,10 @@ import { Select } from '@/components/ui/index.js';
 import { Checkbox } from '@/components/ui/index.js';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog.js';
 import { EmptyState } from '@/components/shared/EmptyState.js';
-import { useUtilityStore } from '@/store/utilityStore.js';
+import { utilitiesApi } from '@/api/utilities.js';
 import { useToast } from '@/hooks/useToast.js';
 import { useModal } from '@/hooks/useModal.js';
-import type { CalendarProvider, CalendarSyncMode } from '@/types/index.js';
+import type { CalendarProvider, CalendarSyncMode, Utility } from '@/types/index.js';
 import { calendarProviderOptions, calendarSyncModeOptions } from '../schemas.js';
 import styles from './UtilityDetailPage.module.css';
 
@@ -44,94 +44,181 @@ function syncModeLabel(mode: CalendarSyncMode | null): string {
   return SYNC_MODE_OPTIONS.find((m) => m.value === mode)?.label ?? '—';
 }
 
+const TAB_IDS = TABS.map((t) => t.id);
+const DEFAULT_TAB = TAB_IDS[0];
+
+interface CalendarForm {
+  enabled: boolean | null;
+  provider: string;
+  address: string;
+  syncMode: string;
+  saving: boolean;
+}
+const INITIAL_CALENDAR_FORM: CalendarForm = { enabled: null, provider: '', address: '', syncMode: '', saving: false };
+
 export function UtilityDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const utilities = useUtilityStore((s) => s.utilities);
-  const updateUtility = useUtilityStore((s) => s.updateUtility);
-  const deleteUtility = useUtilityStore((s) => s.deleteUtility);
-  const addOption = useUtilityStore((s) => s.addOption);
-  const removeOption = useUtilityStore((s) => s.removeOption);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState('overview');
-  const [description, setDescription] = useState('');
-  const [newOptionName, setNewOptionName] = useState('');
+  const rawTab = searchParams.get('tab');
+  const activeTab = rawTab && TAB_IDS.includes(rawTab) ? rawTab : DEFAULT_TAB;
+  function setActiveTab(tab: string): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  }
+
+  const [utility, setUtility] = useState<Utility | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [description, setDescription] = useState({ value: '', saving: false });
+  const [newOption, setNewOption] = useState({ name: '', saving: false });
   const [removeOptionId, setRemoveOptionId] = useState<string | null>(null);
 
-  const [calendarEnabled, setCalendarEnabled] = useState<boolean | null>(null);
-  const [calendarProvider, setCalendarProvider] = useState('');
-  const [calendarAddress, setCalendarAddress] = useState('');
-  const [calendarSyncMode, setCalendarSyncMode] = useState('');
+  const [calendarForm, setCalendarForm] = useState<CalendarForm>(INITIAL_CALENDAR_FORM);
 
   const deleteModal = useModal();
 
-  const utility = utilities.find((u) => u.id === id);
+  const fetchUtility = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await utilitiesApi.get(id);
+      setUtility(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load utility';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
-  if (!utility) {
+  useEffect(() => {
+    void fetchUtility();
+  }, [fetchUtility]);
+
+  if (loading) {
+    return (
+      <PageWrapper title="Loading…">
+        <EmptyState title="Loading utility…" description="Please wait." />
+      </PageWrapper>
+    );
+  }
+
+  if (error || !utility) {
     return (
       <PageWrapper title="Not Found">
-        <EmptyState title="Utility not found" description="This utility does not exist." />
+        <EmptyState
+          title="Utility not found"
+          description={error ?? 'This utility does not exist.'}
+          action={<Button onClick={() => void navigate('/utilities')}>Back to Utilities</Button>}
+        />
       </PageWrapper>
     );
   }
 
   const isSynced = utility.calendar.enabled;
-  const effectiveCalendarEnabled = calendarEnabled ?? isSynced;
+  const effectiveCalendarEnabled = calendarForm.enabled ?? isSynced;
 
-  function handleSaveDescription(): void {
-    updateUtility(utility!.id, { description: description.trim() || utility!.description });
-    toast({ type: 'success', message: 'Description updated' });
-  }
-
-  function handleAddOption(): void {
-    const name = newOptionName.trim();
-    if (!name) return;
-    addOption(utility!.id, { id: `opt-${utility!.id}-${Date.now()}`, name });
-    setNewOptionName('');
-    toast({ type: 'success', message: 'Option added' });
-  }
-
-  function handleRemoveOption(): void {
-    if (!removeOptionId) return;
-    removeOption(utility!.id, removeOptionId);
-    setRemoveOptionId(null);
-    toast({ type: 'success', message: 'Option removed' });
-  }
-
-  function handleSaveCalendar(): void {
-    if (effectiveCalendarEnabled) {
-      const provider = (calendarProvider || utility!.calendar.provider) as CalendarProvider | null;
-      const address = calendarAddress.trim() || utility!.calendar.calendarAddress;
-      const syncMode = (calendarSyncMode || utility!.calendar.syncMode) as CalendarSyncMode | null;
-
-      if (!provider || !address || !syncMode) {
-        toast({ type: 'error', message: 'Fill in provider, calendar address, and sync behavior' });
-        return;
-      }
-
-      updateUtility(utility!.id, {
-        calendar: { enabled: true, provider, calendarAddress: address, syncMode },
-      });
-    } else {
-      updateUtility(utility!.id, {
-        calendar: { enabled: false, provider: null, calendarAddress: '', syncMode: null },
-      });
+  async function handleSaveDescription(): Promise<void> {
+    setDescription((d) => ({ ...d, saving: true }));
+    try {
+      const updated = await utilitiesApi.update(utility!.id, { description: description.value.trim() || utility!.description });
+      setUtility(updated);
+      toast({ type: 'success', message: 'Description updated' });
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update description' });
+    } finally {
+      setDescription((d) => ({ ...d, saving: false }));
     }
-    toast({ type: 'success', message: 'Calendar integration saved' });
   }
 
-  function handleToggleStatus(): void {
+  async function handleAddOption(): Promise<void> {
+    const name = newOption.name.trim();
+    if (!name) return;
+    setNewOption((o) => ({ ...o, saving: true }));
+    try {
+      await utilitiesApi.addOption(utility!.id, name);
+      setNewOption({ name: '', saving: false });
+      toast({ type: 'success', message: 'Option added' });
+      await fetchUtility();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to add option' });
+      setNewOption((o) => ({ ...o, saving: false }));
+    }
+  }
+
+  async function handleRemoveOption(): Promise<void> {
+    if (!removeOptionId) return;
+    try {
+      await utilitiesApi.removeOption(utility!.id, removeOptionId);
+      setRemoveOptionId(null);
+      toast({ type: 'success', message: 'Option removed' });
+      await fetchUtility();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to remove option' });
+    }
+  }
+
+  async function handleSaveCalendar(): Promise<void> {
+    setCalendarForm((c) => ({ ...c, saving: true }));
+    try {
+      if (effectiveCalendarEnabled) {
+        const provider = (calendarForm.provider || utility!.calendar.provider) as CalendarProvider | null;
+        const address = calendarForm.address.trim() || utility!.calendar.calendarAddress;
+        const syncMode = (calendarForm.syncMode || utility!.calendar.syncMode) as CalendarSyncMode | null;
+
+        if (!provider || !address || !syncMode) {
+          toast({ type: 'error', message: 'Fill in provider, calendar address, and sync behavior' });
+          return;
+        }
+
+        const updated = await utilitiesApi.update(utility!.id, {
+          calendarEnabled: true,
+          calendarProvider: provider,
+          calendarAddress: address,
+          calendarSyncMode: syncMode,
+        });
+        setUtility(updated);
+      } else {
+        const updated = await utilitiesApi.update(utility!.id, { calendarEnabled: false });
+        setUtility(updated);
+      }
+      toast({ type: 'success', message: 'Calendar integration saved' });
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to save calendar settings' });
+    } finally {
+      setCalendarForm((c) => ({ ...c, saving: false }));
+    }
+  }
+
+  async function handleToggleStatus(): Promise<void> {
     const nextStatus = utility!.status === 'active' ? 'inactive' : 'active';
-    updateUtility(utility!.id, { status: nextStatus });
-    toast({ type: 'success', message: `Utility marked as ${nextStatus}` });
+    try {
+      const updated = await utilitiesApi.update(utility!.id, { status: nextStatus });
+      setUtility(updated);
+      toast({ type: 'success', message: `Utility marked as ${nextStatus}` });
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update status' });
+    }
   }
 
-  function handleDeleteUtility(): void {
-    deleteModal.close();
-    deleteUtility(utility!.id);
-    toast({ type: 'success', message: 'Utility deleted' });
-    void navigate('/utilities');
+  async function handleDeleteUtility(): Promise<void> {
+    try {
+      await utilitiesApi.remove(utility!.id);
+      deleteModal.close();
+      toast({ type: 'success', message: 'Utility deleted' });
+      void navigate('/utilities');
+    } catch (err) {
+      deleteModal.close();
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to delete utility' });
+    }
   }
 
   return (
@@ -178,11 +265,11 @@ export function UtilityDetailPage(): ReactElement {
                 label=""
                 rows={3}
                 placeholder={utility.description || 'Describe what this utility is used for...'}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                value={description.value}
+                onChange={(e) => setDescription((d) => ({ ...d, value: e.target.value }))}
               />
               <div>
-                <Button leftIcon={<Save size={14} />} onClick={handleSaveDescription} size="sm" variant="secondary">
+                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveDescription()} size="sm" variant="secondary" loading={description.saving}>
                   Save Description
                 </Button>
               </div>
@@ -231,16 +318,16 @@ export function UtilityDetailPage(): ReactElement {
           <div className={styles.addOptionRow}>
             <Input
               placeholder="e.g. Meeting Room 4"
-              value={newOptionName}
-              onChange={(e) => setNewOptionName(e.target.value)}
+              value={newOption.name}
+              onChange={(e) => setNewOption((o) => ({ ...o, name: e.target.value }))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  handleAddOption();
+                  void handleAddOption();
                 }
               }}
             />
-            <Button leftIcon={<Plus size={14} />} onClick={handleAddOption} disabled={!newOptionName.trim()}>
+            <Button leftIcon={<Plus size={14} />} onClick={() => void handleAddOption()} disabled={!newOption.name.trim()} loading={newOption.saving}>
               Add Option
             </Button>
           </div>
@@ -278,7 +365,7 @@ export function UtilityDetailPage(): ReactElement {
                   ? 'This utility is active and can be requested by staff.'
                   : 'This utility is inactive and hidden from requesters.'}
               </p>
-              <Button variant="secondary" size="sm" onClick={handleToggleStatus}>
+              <Button variant="secondary" size="sm" onClick={() => void handleToggleStatus()}>
                 Mark as {utility.status === 'active' ? 'Inactive' : 'Active'}
               </Button>
             </div>
@@ -290,7 +377,7 @@ export function UtilityDetailPage(): ReactElement {
               <Checkbox
                 label="Enable calendar integration"
                 checked={effectiveCalendarEnabled}
-                onChange={(e) => setCalendarEnabled(e.target.checked)}
+                onChange={(e) => setCalendarForm((c) => ({ ...c, enabled: e.target.checked }))}
               />
 
               {effectiveCalendarEnabled && (
@@ -302,14 +389,14 @@ export function UtilityDetailPage(): ReactElement {
                       value: v,
                       label: PROVIDER_OPTIONS.find((p) => p.value === v)?.label ?? v,
                     }))}
-                    value={calendarProvider}
-                    onChange={(e) => setCalendarProvider(e.target.value)}
+                    value={calendarForm.provider}
+                    onChange={(e) => setCalendarForm((c) => ({ ...c, provider: e.target.value }))}
                   />
                   <Input
                     label="Calendar Address / ID"
                     placeholder={utility.calendar.calendarAddress || 'e.g. meetingrooms@company.com'}
-                    value={calendarAddress}
-                    onChange={(e) => setCalendarAddress(e.target.value)}
+                    value={calendarForm.address}
+                    onChange={(e) => setCalendarForm((c) => ({ ...c, address: e.target.value }))}
                   />
                   <Select
                     label="Sync Behavior"
@@ -318,14 +405,14 @@ export function UtilityDetailPage(): ReactElement {
                       value: v,
                       label: SYNC_MODE_OPTIONS.find((m) => m.value === v)?.label ?? v,
                     }))}
-                    value={calendarSyncMode}
-                    onChange={(e) => setCalendarSyncMode(e.target.value)}
+                    value={calendarForm.syncMode}
+                    onChange={(e) => setCalendarForm((c) => ({ ...c, syncMode: e.target.value }))}
                   />
                 </div>
               )}
 
               <div>
-                <Button leftIcon={<Save size={14} />} onClick={handleSaveCalendar} size="sm">
+                <Button leftIcon={<Save size={14} />} onClick={() => void handleSaveCalendar()} size="sm" loading={calendarForm.saving}>
                   Save Calendar Settings
                 </Button>
               </div>
@@ -351,7 +438,7 @@ export function UtilityDetailPage(): ReactElement {
       <ConfirmDialog
         isOpen={!!removeOptionId}
         onClose={() => setRemoveOptionId(null)}
-        onConfirm={handleRemoveOption}
+        onConfirm={() => void handleRemoveOption()}
         title="Remove Option"
         description="Are you sure you want to remove this option from the utility?"
         confirmLabel="Remove"
@@ -362,7 +449,7 @@ export function UtilityDetailPage(): ReactElement {
       <ConfirmDialog
         isOpen={deleteModal.isOpen}
         onClose={deleteModal.close}
-        onConfirm={handleDeleteUtility}
+        onConfirm={() => void handleDeleteUtility()}
         title="Delete Utility"
         description={`Are you sure you want to delete "${utility.name}"? This action cannot be undone.`}
         confirmLabel="Delete"

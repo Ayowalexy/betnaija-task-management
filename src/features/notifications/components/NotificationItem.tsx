@@ -1,4 +1,4 @@
-import { Bell, CheckCircle, AlertTriangle, MessageSquare, CreditCard, ArrowRight } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, Ticket, AlertTriangle, MessageSquare, CreditCard, ArrowRight, ClipboardList } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Notification } from '@/types/index';
 import styles from './NotificationItem.module.css';
@@ -11,12 +11,19 @@ interface NotificationItemProps {
 function NotifIcon({ type }: { type: Notification['type'] }) {
   const icons: Record<Notification['type'], React.ReactNode> = {
     ticket_assigned: <Bell size={16} />,
+    ticket_accepted: <CheckCircle size={16} />,
+    ticket_rejected: <XCircle size={16} />,
+    new_ticket: <Ticket size={16} />,
     sla_warning: <AlertTriangle size={16} />,
     ticket_resolved: <CheckCircle size={16} />,
     new_comment: <MessageSquare size={16} />,
     payment_initiated: <CreditCard size={16} />,
     ticket_escalated: <AlertTriangle size={16} />,
     ticket_transferred: <ArrowRight size={16} />,
+    utility_request_submitted: <ClipboardList size={16} />,
+    utility_request_approved: <CheckCircle size={16} />,
+    utility_request_rejected: <XCircle size={16} />,
+    utility_request_completed: <CheckCircle size={16} />,
   };
   return <>{icons[type]}</>;
 }

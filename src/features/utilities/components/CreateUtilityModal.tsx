@@ -9,8 +9,8 @@ import { Textarea } from '@/components/ui/index.js';
 import { Select } from '@/components/ui/index.js';
 import { Checkbox } from '@/components/ui/index.js';
 import { useToast } from '@/hooks/useToast.js';
-import { useUtilityStore } from '@/store/utilityStore.js';
-import type { CalendarProvider, CalendarSyncMode, Utility } from '@/types/index.js';
+import { utilitiesApi } from '@/api/utilities.js';
+import type { CalendarProvider, CalendarSyncMode } from '@/types/index.js';
 import { createUtilitySchema } from '../schemas.js';
 import type { CreateUtilityFormData } from '../schemas.js';
 import styles from './CreateUtilityModal.module.css';
@@ -18,6 +18,7 @@ import styles from './CreateUtilityModal.module.css';
 interface CreateUtilityModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
 const PROVIDER_OPTIONS = [
@@ -31,9 +32,8 @@ const SYNC_MODE_OPTIONS = [
   { value: 'event', label: 'Create a calendar event/block only' },
 ];
 
-export function CreateUtilityModal({ isOpen, onClose }: CreateUtilityModalProps): ReactElement {
+export function CreateUtilityModal({ isOpen, onClose, onSuccess }: CreateUtilityModalProps): ReactElement {
   const { toast } = useToast();
-  const addUtility = useUtilityStore((s) => s.addUtility);
 
   const {
     register,
@@ -66,29 +66,24 @@ export function CreateUtilityModal({ isOpen, onClose }: CreateUtilityModalProps)
     onClose();
   }
 
-  function onSubmit(data: CreateUtilityFormData): void {
-    const id = `util-${Date.now()}`;
-    const now = new Date().toISOString();
-    const newUtility: Utility = {
-      id,
-      name: data.name,
-      description: data.description,
-      options: data.options.map((opt, i) => ({ id: `opt-${id}-${i}`, name: opt.name })),
-      calendar: data.calendarEnabled
-        ? {
-            enabled: true,
-            provider: data.calendarProvider as CalendarProvider,
-            calendarAddress: data.calendarAddress,
-            syncMode: data.calendarSyncMode as CalendarSyncMode,
-          }
-        : { enabled: false, provider: null, calendarAddress: '', syncMode: null },
-      status: 'active',
-      createdAt: now,
-      updatedAt: now,
-    };
-    addUtility(newUtility);
-    toast({ type: 'success', message: 'Utility created successfully' });
-    handleClose();
+  async function onSubmit(data: CreateUtilityFormData): Promise<void> {
+    try {
+      await utilitiesApi.create({
+        name: data.name,
+        description: data.description,
+        options: data.options.map((opt) => ({ name: opt.name })),
+        calendarEnabled: data.calendarEnabled,
+        calendarProvider: data.calendarEnabled ? (data.calendarProvider as CalendarProvider) : undefined,
+        calendarAddress: data.calendarEnabled ? data.calendarAddress : undefined,
+        calendarSyncMode: data.calendarEnabled ? (data.calendarSyncMode as CalendarSyncMode) : undefined,
+      });
+      toast({ type: 'success', message: 'Utility created successfully' });
+      reset();
+      onSuccess ? onSuccess() : onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create utility';
+      toast({ type: 'error', message });
+    }
   }
 
   const footer = (

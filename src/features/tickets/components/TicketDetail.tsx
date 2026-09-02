@@ -37,10 +37,8 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
   const transferModal = useModal();
   const paymentModal = useModal();
   const rejectModal = useModal();
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState('');
-  const [rejectNote, setRejectNote] = useState('');
-  const [rejecting, setRejecting] = useState(false);
+  const [titleEdit, setTitleEdit] = useState({ editing: false, draft: '' });
+  const [reject, setReject] = useState({ note: '', submitting: false });
 
   if (!ticket) {
     return (
@@ -74,25 +72,24 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
   }
 
   function startEditTitle() {
-    setTitleDraft(ticket.title);
-    setEditingTitle(true);
+    setTitleEdit({ editing: true, draft: ticket.title });
   }
 
   async function saveTitle() {
-    if (titleDraft.trim()) {
+    if (titleEdit.draft.trim()) {
       try {
-        await ticketsApi.update(ticket.id, { title: titleDraft.trim() });
+        await ticketsApi.update(ticket.id, { title: titleEdit.draft.trim() });
         toast({ type: 'success', message: 'Title updated.' });
         onRefresh();
       } catch {
         toast({ type: 'error', message: 'Failed to update title.' });
       }
     }
-    setEditingTitle(false);
+    setTitleEdit((s) => ({ ...s, editing: false }));
   }
 
   function cancelEditTitle() {
-    setEditingTitle(false);
+    setTitleEdit((s) => ({ ...s, editing: false }));
   }
 
   async function handleAccept() {
@@ -137,17 +134,17 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
   }
 
   async function handleReject() {
-    setRejecting(true);
+    setReject((s) => ({ ...s, submitting: true }));
     try {
-      await ticketsApi.reject(ticket.id, rejectNote.trim());
+      await ticketsApi.reject(ticket.id, reject.note.trim());
       toast({ type: 'success', message: 'Ticket rejected.' });
       rejectModal.close();
-      setRejectNote('');
+      setReject((s) => ({ ...s, note: '' }));
       onRefresh();
     } catch {
       toast({ type: 'error', message: 'Failed to reject ticket.' });
     } finally {
-      setRejecting(false);
+      setReject((s) => ({ ...s, submitting: false }));
     }
   }
 
@@ -170,12 +167,12 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
         <div className={styles.leftPanel}>
           {/* Title */}
           <div className={styles.titleRow}>
-            {editingTitle ? (
+            {titleEdit.editing ? (
               <div className={styles.titleEdit}>
                 <input
                   className={styles.titleInput}
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
+                  value={titleEdit.draft}
+                  onChange={(e) => setTitleEdit((s) => ({ ...s, draft: e.target.value }))}
                   autoFocus
                   onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') cancelEditTitle(); }}
                 />
@@ -259,7 +256,7 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
 
           {/* SLA */}
           {ticket.slaResolutionDeadline && (
-            <SLACountdown deadline={ticket.slaResolutionDeadline} variant="bar" />
+            <SLACountdown deadline={ticket.slaResolutionDeadline} createdAt={ticket.createdAt} variant="bar" />
           )}
 
           {/* Meta grid */}
@@ -349,10 +346,10 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
                 {ticket.transferHistory.map((tr) => (
                   <div key={tr.id} className={styles.transferEntry}>
                     <span className={styles.transferRoute}>
-                      {tr.fromDeptId.slice(0, 8)} → {tr.toDeptId.slice(0, 8)}
+                      {tr.fromDeptName ?? 'Unknown department'} → {tr.toDeptName ?? 'Unknown department'}
                     </span>
                     <span className={styles.transferMeta}>
-                      by {tr.byUserId.slice(0, 8)} · {format(new Date(tr.timestamp), 'MMM d, HH:mm')}
+                      by {tr.byUserName ?? 'Unknown user'} · {format(new Date(tr.timestamp), 'MMM d, HH:mm')}
                     </span>
                     {tr.note && <span className={styles.transferNote}>{tr.note}</span>}
                   </div>
@@ -401,7 +398,7 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
 
         {/* Right Panel */}
         <div className={styles.rightPanel}>
-          <CommentThread ticketId={ticket.id} comments={ticket.comments} onRefresh={onRefresh} />
+          <CommentThread ticketId={ticket.id} comments={ticket.comments} />
         </div>
       </div>
 
@@ -410,7 +407,6 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
         onClose={transferModal.close}
         ticketId={ticket.id}
         currentDeptId={ticket.departmentId}
-        onRefresh={onRefresh}
       />
       <PaymentModal
         isOpen={paymentModal.isOpen}
@@ -420,15 +416,15 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
 
       <Modal
         isOpen={rejectModal.isOpen}
-        onClose={() => { rejectModal.close(); setRejectNote(''); }}
+        onClose={() => { rejectModal.close(); setReject((s) => ({ ...s, note: '' })); }}
         title="Reject Ticket"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { rejectModal.close(); setRejectNote(''); }} disabled={rejecting}>
+            <Button variant="secondary" onClick={() => { rejectModal.close(); setReject((s) => ({ ...s, note: '' })); }} disabled={reject.submitting}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleReject} loading={rejecting}>
+            <Button variant="danger" onClick={handleReject} loading={reject.submitting}>
               Confirm Rejection
             </Button>
           </>
@@ -440,8 +436,8 @@ export function TicketDetail({ ticket, onRefresh }: TicketDetailProps) {
         <textarea
           className={styles.rejectNoteInput}
           placeholder="Enter rejection reason…"
-          value={rejectNote}
-          onChange={(e) => setRejectNote(e.target.value)}
+          value={reject.note}
+          onChange={(e) => setReject((s) => ({ ...s, note: e.target.value }))}
           rows={4}
           autoFocus
         />

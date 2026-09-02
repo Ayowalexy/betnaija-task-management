@@ -13,6 +13,13 @@ export interface Column<T> {
   width?: string;
 }
 
+interface ServerPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}
+
 interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
@@ -23,6 +30,10 @@ interface DataTableProps<T> {
   checkboxSelection?: boolean;
   pageSize?: number;
   stickyHeader?: boolean;
+  // When set, `data` is treated as just the current page (already fetched from the server) —
+  // pagination controls drive `onPageChange` instead of slicing `data` client-side. Sorting
+  // still only applies within the current page's rows, since sort isn't sent to the server.
+  serverPagination?: ServerPagination;
 }
 
 type SortDir = 'asc' | 'desc' | null;
@@ -288,6 +299,7 @@ export function DataTable<T>({
   checkboxSelection = false,
   pageSize = 10,
   stickyHeader = false,
+  serverPagination,
 }: DataTableProps<T>): ReactElement {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
@@ -307,8 +319,25 @@ export function DataTable<T>({
     });
   }, [data, sortKey, sortDir, columns]);
 
-  const { page, totalPages, paginatedItems, goToPage, nextPage, prevPage, canNext, canPrev } =
-    usePagination(sortedData, pageSize);
+  // Always called (rules of hooks) — only its result is used when serverPagination is absent.
+  const clientPagination = usePagination(sortedData, pageSize);
+
+  const page = serverPagination?.page ?? clientPagination.page;
+  const effectivePageSize = serverPagination?.pageSize ?? pageSize;
+  const totalItems = serverPagination?.totalItems ?? data.length;
+  const totalPages = serverPagination
+    ? Math.max(1, Math.ceil(serverPagination.totalItems / serverPagination.pageSize))
+    : clientPagination.totalPages;
+  const paginatedItems = serverPagination ? sortedData : clientPagination.paginatedItems;
+  const goToPage = serverPagination ? serverPagination.onPageChange : clientPagination.goToPage;
+  const nextPage = serverPagination
+    ? () => serverPagination.onPageChange(Math.min(page + 1, totalPages))
+    : clientPagination.nextPage;
+  const prevPage = serverPagination
+    ? () => serverPagination.onPageChange(Math.max(page - 1, 1))
+    : clientPagination.prevPage;
+  const canNext = page < totalPages;
+  const canPrev = page > 1;
 
   const handleSort = (key: string): void => {
     if (sortKey !== key) {
@@ -375,12 +404,12 @@ export function DataTable<T>({
           onToggleRow={handleToggleRow}
         />
       </table>
-      {!loading && data.length > pageSize && (
+      {!loading && totalItems > effectivePageSize && (
         <PaginationControls
           page={page}
           totalPages={totalPages}
-          totalItems={data.length}
-          pageSize={pageSize}
+          totalItems={totalItems}
+          pageSize={effectivePageSize}
           canPrev={canPrev}
           canNext={canNext}
           goToPage={goToPage}

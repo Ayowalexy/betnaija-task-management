@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "flowdesk-api-v1",
-    "name": "FlowDesk API",
-    "description": "FlowDesk task management system — NestJS backend REST API (base: {{baseUrl}})\n\nAuthentication: All endpoints require a Bearer token from Keycloak except those marked @Public.\nSet {{accessToken}} after login via Keycloak. The refresh/logout endpoints accept {{refreshToken}}.",
+    "_postman_id": "bet9ja-api-v1",
+    "name": "Bet9ja API",
+    "description": "Bet9ja task management system — NestJS backend REST API (base: {{baseUrl}})\n\nAuthentication: All endpoints require a Bearer token from Keycloak except those marked @Public.\nSet {{accessToken}} after login via Keycloak. The refresh/logout endpoints accept {{refreshToken}}.\n\nv1.1: added Departments > Request Types, the Utilities folder, the Utility Requests folder, and Settings > SMTP (replacing the old Resend-based email config).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -15,12 +15,16 @@
     { "key": "refreshToken", "value": "", "type": "string" },
     { "key": "userId", "value": "", "type": "string" },
     { "key": "departmentId", "value": "", "type": "string" },
+    { "key": "requestTypeId", "value": "", "type": "string" },
     { "key": "ticketId", "value": "", "type": "string" },
     { "key": "commentId", "value": "", "type": "string" },
     { "key": "shiftId", "value": "", "type": "string" },
     { "key": "notificationId", "value": "", "type": "string" },
     { "key": "paymentId", "value": "", "type": "string" },
-    { "key": "fileId", "value": "", "type": "string" }
+    { "key": "fileId", "value": "", "type": "string" },
+    { "key": "utilityId", "value": "", "type": "string" },
+    { "key": "utilityOptionId", "value": "", "type": "string" },
+    { "key": "utilityRequestId", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -116,7 +120,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"amaka@flowdesk.io\"\n}",
+              "raw": "{\n  \"email\": \"amaka@bet9ja.com\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth", "forgot-password"] },
@@ -131,7 +135,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"amaka@flowdesk.io\",\n  \"otp\": \"482910\",\n  \"newPassword\": \"MyNewPassword123!\"\n}",
+              "raw": "{\n  \"email\": \"amaka@bet9ja.com\",\n  \"otp\": \"482910\",\n  \"newPassword\": \"MyNewPassword123!\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth", "reset-password"] },
@@ -203,7 +207,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Chidi Okeke\",\n  \"email\": \"chidi@flowdesk.io\",\n  \"role\": \"team_member\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"temporaryPassword\": \"Temp@1234\",\n  \"notificationPrefs\": {\n    \"email\": true,\n    \"teams\": false,\n    \"whatsapp\": false,\n    \"sms\": false\n  }\n}",
+              "raw": "{\n  \"name\": \"Chidi Okeke\",\n  \"email\": \"chidi@bet9ja.com\",\n  \"role\": \"team_member\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"temporaryPassword\": \"Temp@1234\",\n  \"notificationPrefs\": {\n    \"email\": true,\n    \"teams\": false,\n    \"whatsapp\": false,\n    \"sms\": false\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] },
@@ -277,11 +281,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Customer Support\",\n  \"slug\": \"customer-support\",\n  \"description\": \"Handles all customer-facing support tickets\",\n  \"headId\": \"{{userId}}\",\n  \"routing\": \"roster_based\",\n  \"sla\": {\n    \"responseTimeMs\": 1800000,\n    \"resolutionTimeMs\": 28800000\n  },\n  \"teamsWebhook\": \"https://outlook.office.com/webhook/...\"\n}",
+              "raw": "{\n  \"name\": \"Customer Support\",\n  \"slug\": \"customer-support\",\n  \"description\": \"Handles all customer-facing support tickets\",\n  \"headId\": \"{{userId}}\",\n  \"routing\": \"roster_based\",\n  \"sla\": {\n    \"responseTimeMs\": 1800000,\n    \"resolutionTimeMs\": 28800000\n  },\n  \"teamsWebhook\": \"https://outlook.office.com/webhook/...\",\n  \"requestTypes\": [\n    {\n      \"name\": \"General Inquiry\",\n      \"description\": \"General customer questions or requests.\",\n      \"priority\": \"medium\",\n      \"sla\": { \"responseTimeMs\": 900000, \"resolutionTimeMs\": 14400000 }\n    }\n  ],\n  \"utilityIds\": []\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/departments", "host": ["{{baseUrl}}"], "path": ["departments"] },
-            "description": "Roles: root_admin. routing: roster_based | all_notify. SLA times in milliseconds."
+            "description": "Roles: root_admin. routing: roster_based | all_notify. SLA times in milliseconds. requestTypes (optional) seeds this department's request-type picker — each type may override the department SLA for tickets that select it. utilityIds (optional) links utilities this department approves booking requests for."
           }
         },
         {
@@ -291,11 +295,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Customer Support - Updated\",\n  \"routing\": \"all_notify\",\n  \"sla\": {\n    \"responseTimeMs\": 900000,\n    \"resolutionTimeMs\": 14400000\n  },\n  \"teamsWebhook\": null\n}",
+              "raw": "{\n  \"name\": \"Customer Support - Updated\",\n  \"routing\": \"all_notify\",\n  \"sla\": {\n    \"responseTimeMs\": 900000,\n    \"resolutionTimeMs\": 14400000\n  },\n  \"teamsWebhook\": null,\n  \"utilityIds\": [\"{{utilityId}}\"]\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}"] },
-            "description": "Roles: root_admin. All fields optional."
+            "description": "Roles: root_admin. All fields optional. requestTypes are not editable here — use the Request Types requests below. utilityIds, if present, replaces the full set of linked utilities."
           }
         },
         {
@@ -329,6 +333,56 @@
             "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}/members/{{userId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}", "members", "{{userId}}"] },
             "description": "Roles: root_admin. Clears user.departmentId. Returns 204."
           }
+        },
+        {
+          "name": "Create Request Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const id = json?.data?.id ?? json?.id;",
+                  "if (id) pm.environment.set('requestTypeId', id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"VPN / Network Access\",\n  \"description\": \"Issues connecting to the corporate VPN or internal network.\",\n  \"priority\": \"high\",\n  \"sla\": { \"responseTimeMs\": 900000, \"resolutionTimeMs\": 7200000 }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}/request-types", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}", "request-types"] },
+            "description": "Roles: root_admin. Adds a request type to this department's ticket-creation picker. Its SLA overrides the department default for tickets that select it. Post-response script saves {{requestTypeId}}."
+          }
+        },
+        {
+          "name": "Update Request Type",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"priority\": \"critical\",\n  \"sla\": { \"responseTimeMs\": 600000, \"resolutionTimeMs\": 3600000 }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}/request-types/{{requestTypeId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}", "request-types", "{{requestTypeId}}"] },
+            "description": "Roles: root_admin. All fields optional."
+          }
+        },
+        {
+          "name": "Delete Request Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/departments/{{departmentId}}/request-types/{{requestTypeId}}", "host": ["{{baseUrl}}"], "path": ["departments", "{{departmentId}}", "request-types", "{{requestTypeId}}"] },
+            "description": "Roles: root_admin. Existing tickets that referenced this type keep their history but lose the association (request_type_id is set to NULL). Returns 204."
+          }
         }
       ]
     },
@@ -354,10 +408,12 @@
                 { "key": "departmentIds", "value": "", "description": "Comma-separated department UUIDs", "disabled": true },
                 { "key": "assigneeId", "value": "", "disabled": true },
                 { "key": "requestorId", "value": "", "disabled": true },
-                { "key": "search", "value": "", "disabled": true },
+                { "key": "search", "value": "", "description": "Matches ticket ID or title", "disabled": true },
                 { "key": "tags", "value": "", "disabled": true },
                 { "key": "dateFrom", "value": "", "description": "ISO date string", "disabled": true },
-                { "key": "dateTo", "value": "", "disabled": true }
+                { "key": "dateTo", "value": "", "disabled": true },
+                { "key": "slaBreachedFrom", "value": "", "description": "ISO date — filters on sla_resolution_deadline", "disabled": true },
+                { "key": "slaBreachedTo", "value": "", "description": "ISO date — filters on sla_resolution_deadline", "disabled": true }
               ]
             },
             "description": "Scoped by role: root_admin sees all; dept_head sees their dept; team_member sees own tickets."
@@ -384,6 +440,8 @@
                 { "key": "description", "value": "Users are unable to access the login page since the last deployment.", "type": "text" },
                 { "key": "priority", "value": "high", "type": "text", "description": "low | medium | high | critical" },
                 { "key": "departmentId", "value": "{{departmentId}}", "type": "text" },
+                { "key": "requestTypeId", "value": "{{requestTypeId}}", "type": "text", "description": "A department request-type UUID, or the literal string \"other\"" },
+                { "key": "customRequestTypeName", "value": "", "type": "text", "description": "Required (min 3 chars) only when requestTypeId is \"other\"", "disabled": true },
                 { "key": "tags[0]", "value": "bug", "type": "text" },
                 { "key": "tags[1]", "value": "urgent", "type": "text" },
                 { "key": "linkedTicketIds[0]", "value": "", "type": "text", "disabled": true },
@@ -391,7 +449,7 @@
               ]
             },
             "url": { "raw": "{{baseUrl}}/tickets", "host": ["{{baseUrl}}"], "path": ["tickets"] },
-            "description": "Multipart/form-data. Files optional. Auto-assigns if dept routing=roster_based and a shift is active."
+            "description": "Multipart/form-data. Files optional. Auto-assigns if dept routing=roster_based and a shift is active. requestTypeId must be one of the department's request types (see Departments > Create/Update Request Type) or the literal \"other\" — its SLA overrides the department default when set."
           }
         },
         {
@@ -530,6 +588,309 @@
       ]
     },
     {
+      "name": "Utilities",
+      "item": [
+        {
+          "name": "List Utilities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/utilities",
+              "host": ["{{baseUrl}}"],
+              "path": ["utilities"],
+              "query": [
+                { "key": "status", "value": "active", "description": "active | inactive", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "All authenticated users — populates the utility picker on the utility-request creation form. Each item includes departmentIds (which departments approve requests for it)."
+          }
+        },
+        {
+          "name": "Get Utility",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utilities/{{utilityId}}", "host": ["{{baseUrl}}"], "path": ["utilities", "{{utilityId}}"] },
+            "description": "All authenticated users. Includes options[] and the resolved departments[] (id + name)."
+          }
+        },
+        {
+          "name": "Create Utility",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const data = json?.data ?? json;",
+                  "if (data?.id) pm.environment.set('utilityId', data.id);",
+                  "if (data?.options?.[0]?.id) pm.environment.set('utilityOptionId', data.options[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meeting Rooms\",\n  \"description\": \"Bookable meeting and conference rooms across the office.\",\n  \"options\": [\n    { \"name\": \"Meeting Room 1\" },\n    { \"name\": \"Boardroom\" }\n  ],\n  \"calendarEnabled\": true,\n  \"calendarProvider\": \"google\",\n  \"calendarAddress\": \"meetingrooms@bet9ja.com\",\n  \"calendarSyncMode\": \"meeting\",\n  \"departmentIds\": [\"{{departmentId}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utilities", "host": ["{{baseUrl}}"], "path": ["utilities"] },
+            "description": "Roles: root_admin. calendarProvider/calendarAddress/calendarSyncMode are required when calendarEnabled=true. departmentIds seeds which department(s) approve booking requests for this utility. Post-response script saves {{utilityId}} and {{utilityOptionId}}."
+          }
+        },
+        {
+          "name": "Update Utility",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Bookable meeting and conference rooms — 2nd and 3rd floor.\",\n  \"departmentIds\": [\"{{departmentId}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utilities/{{utilityId}}", "host": ["{{baseUrl}}"], "path": ["utilities", "{{utilityId}}"] },
+            "description": "Roles: root_admin. All fields optional. Does not accept `options` — use Add Option / Remove Option below. departmentIds, if present, replaces the full set of linked departments."
+          }
+        },
+        {
+          "name": "Delete Utility",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utilities/{{utilityId}}", "host": ["{{baseUrl}}"], "path": ["utilities", "{{utilityId}}"] },
+            "description": "Roles: root_admin. Fails with 409 if the utility has pending or approved requests. Returns 204."
+          }
+        },
+        {
+          "name": "Add Option",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const data = json?.data ?? json;",
+                  "if (data?.id) pm.environment.set('utilityOptionId', data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meeting Room 2\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utilities/{{utilityId}}/options", "host": ["{{baseUrl}}"], "path": ["utilities", "{{utilityId}}", "options"] },
+            "description": "Roles: root_admin. Adds a bookable option to this utility. Post-response script saves {{utilityOptionId}}."
+          }
+        },
+        {
+          "name": "Remove Option",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utilities/{{utilityId}}/options/{{utilityOptionId}}", "host": ["{{baseUrl}}"], "path": ["utilities", "{{utilityId}}", "options", "{{utilityOptionId}}"] },
+            "description": "Roles: root_admin. Fails with 409 if the option has pending or approved requests. Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Utility Requests",
+      "item": [
+        {
+          "name": "List Utility Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/utility-requests?page=1&limit=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["utility-requests"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "15" },
+                { "key": "departmentIds", "value": "", "description": "Comma-separated department UUIDs (root_admin only — other roles are pre-scoped server-side)", "disabled": true },
+                { "key": "utilityIds", "value": "", "description": "Comma-separated utility UUIDs", "disabled": true },
+                { "key": "statuses", "value": "pending,approved", "description": "pending | approved | rejected | completed | cancelled", "disabled": true },
+                { "key": "dateFrom", "value": "", "description": "YYYY-MM-DD, filters on the request's date field", "disabled": true },
+                { "key": "dateTo", "value": "", "disabled": true },
+                { "key": "search", "value": "", "description": "Matches request ID or details", "disabled": true }
+              ]
+            },
+            "description": "Scoped by role: root_admin sees all; dept_head sees requests for their department plus their own; team_member sees only their own requests."
+          }
+        },
+        {
+          "name": "Get Utility Request",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}"] },
+            "description": "Full detail: comments (with reactions/attachments) and the append-only activity log."
+          }
+        },
+        {
+          "name": "Create Utility Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const data = json?.data ?? json;",
+                  "if (data?.id) pm.environment.set('utilityRequestId', data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"utilityId\": \"{{utilityId}}\",\n  \"utilityOptionId\": \"{{utilityOptionId}}\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"date\": \"2026-07-05\",\n  \"startTime\": \"14:00\",\n  \"endTime\": \"15:30\",\n  \"details\": \"Quarterly policy review with department heads.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utility-requests", "host": ["{{baseUrl}}"], "path": ["utility-requests"] },
+            "description": "All authenticated users. departmentId must be one of the departments linked to utilityId (see Utilities > Create/Update Utility). Returns 400 if it isn't. Status starts as pending. Post-response script saves {{utilityRequestId}}."
+          }
+        },
+        {
+          "name": "Update Utility Request",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-07-06\",\n  \"startTime\": \"15:00\",\n  \"endTime\": \"16:00\",\n  \"details\": \"Rescheduled — quarterly policy review with department heads.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}"] },
+            "description": "Requestor only, and only while status is pending or approved. All fields optional."
+          }
+        },
+        {
+          "name": "Approve Utility Request",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/approve", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "approve"] },
+            "description": "Roles: root_admin, dept_head (own dept). Only while status=pending. Notifies the requestor."
+          }
+        },
+        {
+          "name": "Reject Utility Request",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Room already booked for a vendor meeting that day.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/reject", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "reject"] },
+            "description": "Roles: root_admin, dept_head (own dept). Only while status=pending. Notifies the requestor with the rejection reason."
+          }
+        },
+        {
+          "name": "Complete Utility Request",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/complete", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "complete"] },
+            "description": "Roles: root_admin, dept_head (own dept). Only while status=approved. Notifies the requestor."
+          }
+        },
+        {
+          "name": "Cancel Utility Request",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/cancel", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "cancel"] },
+            "description": "Requestor only, and only while status is pending or approved."
+          }
+        },
+        {
+          "name": "Add Comment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const data = json?.data ?? json;",
+                  "if (data?.id) pm.environment.set('commentId', data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "content", "value": "Approved — please return the room key to the front desk after.", "type": "text" },
+                { "key": "files[]", "src": [], "type": "file", "disabled": true }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/comments", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "comments"] },
+            "description": "All users who can view the request. Multipart/form-data. Files optional. Post-response script saves {{commentId}}."
+          }
+        },
+        {
+          "name": "Edit Comment",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated: please return the room key to IT instead of the front desk.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "comments", "{{commentId}}"] },
+            "description": "Only the comment author can edit."
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "comments", "{{commentId}}"] },
+            "description": "Author or root_admin. Also deletes associated attachments. Returns 204."
+          }
+        },
+        {
+          "name": "Toggle Reaction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emoji\": \"👍\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/utility-requests/{{utilityRequestId}}/comments/{{commentId}}/reactions", "host": ["{{baseUrl}}"], "path": ["utility-requests", "{{utilityRequestId}}", "comments", "{{commentId}}", "reactions"] },
+            "description": "Toggles an emoji reaction. Returns updated reactions array."
+          }
+        }
+      ]
+    },
+    {
       "name": "Roster",
       "item": [
         {
@@ -605,7 +966,7 @@
               "query": [
                 { "key": "page", "value": "1" },
                 { "key": "limit", "value": "25" },
-                { "key": "type", "value": "", "description": "ticket_assigned | ticket_resolved | ticket_transferred | ticket_escalated | new_comment | sla_warning", "disabled": true },
+                { "key": "type", "value": "", "description": "ticket_assigned | ticket_accepted | ticket_rejected | new_ticket | ticket_resolved | ticket_transferred | ticket_escalated | new_comment | sla_warning | payment_initiated | utility_request_submitted | utility_request_approved | utility_request_rejected | utility_request_completed", "disabled": true },
                 { "key": "isRead", "value": "false", "description": "true | false", "disabled": true }
               ]
             },
@@ -768,7 +1129,7 @@
             "method": "GET",
             "header": [],
             "url": { "raw": "{{baseUrl}}/settings", "host": ["{{baseUrl}}"], "path": ["settings"] },
-            "description": "Roles: root_admin."
+            "description": "Roles: root_admin. Includes the smtp block (password decrypted for display, same convention as paystackSecretKey)."
           }
         },
         {
@@ -778,11 +1139,25 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orgName\": \"FlowDesk Inc.\",\n  \"paystackPublicKey\": \"pk_live_...\",\n  \"paystackSecretKey\": \"sk_live_...\",\n  \"notifChannels\": {\n    \"email\": true,\n    \"teams\": true,\n    \"sms\": false,\n    \"whatsapp\": false\n  }\n}",
+              "raw": "{\n  \"orgName\": \"Bet9ja Inc.\",\n  \"paystackPublicKey\": \"pk_live_...\",\n  \"paystackSecretKey\": \"sk_live_...\",\n  \"notifChannels\": {\n    \"email\": true,\n    \"teams\": true,\n    \"sms\": false,\n    \"whatsapp\": false\n  },\n  \"smtp\": {\n    \"provider\": \"office365\",\n    \"host\": \"smtp.office365.com\",\n    \"port\": 587,\n    \"encryption\": \"tls\",\n    \"username\": \"notifications@bet9ja.com\",\n    \"password\": \"app-password-or-account-password\",\n    \"senderName\": \"Bet9ja Support\",\n    \"senderEmail\": \"no-reply@bet9ja.com\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/settings", "host": ["{{baseUrl}}"], "path": ["settings"] },
-            "description": "Roles: root_admin. All fields optional."
+            "description": "Roles: root_admin. All fields optional. smtp replaces the old env-var-based Resend config — outgoing email (welcome mail, password-reset OTPs, ticket/utility-request notifications) is sent through whatever SMTP connection is saved here, via Nodemailer. provider is one of office365 | gmail | custom; encryption is one of tls | ssl | none. password is encrypted at rest, same as paystackSecretKey."
+          }
+        },
+        {
+          "name": "Send Test Email (SMTP)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"you@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/settings/smtp/test", "host": ["{{baseUrl}}"], "path": ["settings", "smtp", "test"] },
+            "description": "Roles: root_admin. Sends a one-off test email through the saved SMTP configuration. Pass an `smtp` object in the body (same shape as Update Settings' smtp field) to test an in-progress edit instead of what's already saved. Returns 400 with the underlying SMTP error if the connection or credentials are bad."
           }
         },
         {
@@ -817,12 +1192,13 @@
               "host": ["{{baseUrl}}"],
               "path": ["files", "upload"],
               "query": [
-                { "key": "context", "value": "ticket", "description": "ticket | comment | logo | chat" },
+                { "key": "context", "value": "ticket", "description": "ticket | comment | utility-request-comment | logo | chat" },
                 { "key": "ticketId", "value": "{{ticketId}}", "disabled": true },
-                { "key": "commentId", "value": "{{commentId}}", "disabled": true }
+                { "key": "commentId", "value": "{{commentId}}", "disabled": true },
+                { "key": "requestId", "value": "{{utilityRequestId}}", "description": "Required if context=utility-request-comment (use with commentId)", "disabled": true }
               ]
             },
-            "description": "Uploads to Cloudinary. Returns attachment record with Cloudinary URL."
+            "description": "Uploads to Cloudinary. Returns attachment record with Cloudinary URL. Standalone uploads for a utility-request comment aren't typically needed — the Utility Requests > Add Comment request uploads inline via multipart."
           }
         },
         {
@@ -840,35 +1216,12 @@
       "name": "Chat",
       "item": [
         {
-          "name": "Get Stream.io Token",
+          "name": "Get Stream Chat Token",
           "request": {
             "method": "GET",
             "header": [],
             "url": { "raw": "{{baseUrl}}/chat/token", "host": ["{{baseUrl}}"], "path": ["chat", "token"] },
-            "description": "Returns a Stream.io user token for initialising the client SDK."
-          }
-        },
-        {
-          "name": "Provision User",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/chat/provision-user", "host": ["{{baseUrl}}"], "path": ["chat", "provision-user"] },
-            "description": "Creates/updates the authenticated user in Stream.io."
-          }
-        },
-        {
-          "name": "Create Channel",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"type\": \"group\",\n  \"memberIds\": [\"{{userId}}\"],\n  \"name\": \"Tech Support Channel\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": { "raw": "{{baseUrl}}/chat/channels", "host": ["{{baseUrl}}"], "path": ["chat", "channels"] },
-            "description": "type: dm | group. name is optional for dm. Returns Stream.io channel object."
+            "description": "The only chat endpoint the backend exposes — token signing requires the Stream app secret, which never leaves the server. The frontend uses this token to connect the stream-chat JS client directly to Stream for everything else: provisioning the user (connectUser already syncs name/image for the connecting user), querying/creating channels, sending messages, presence, and read receipts. No other chat operation is proxied through this API."
           }
         }
       ]

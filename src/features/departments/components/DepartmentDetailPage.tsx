@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { RotateCcw, BellRing, UserPlus, Trash2, Save, Users, Ticket } from 'lucide-react';
+import { RotateCcw, BellRing, UserPlus, Trash2, Save, Users, Ticket, Plus, Pencil } from 'lucide-react';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
 import { Tabs } from '@/components/ui/index.js';
 import { Button } from '@/components/ui/index.js';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/index.js';
 import { Textarea } from '@/components/ui/index.js';
 import { Modal } from '@/components/ui/index.js';
 import { Select } from '@/components/ui/index.js';
+import { Checkbox } from '@/components/ui/index.js';
 import { DataTable } from '@/components/shared/DataTable.js';
 import type { Column } from '@/components/shared/DataTable.js';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog.js';
@@ -21,12 +22,161 @@ import { EmptyState } from '@/components/shared/EmptyState.js';
 import { useUIStore } from '@/store/uiStore.js';
 import { useModal } from '@/hooks/useModal.js';
 import { departmentsApi } from '@/api/departments.js';
+import type { CreateRequestTypePayload } from '@/api/departments.js';
 import { usersApi } from '@/api/users.js';
+import { ticketsApi } from '@/api/tickets.js';
+import { utilitiesApi } from '@/api/utilities.js';
 import { createDepartmentSchema } from '../schemas.js';
 import type { CreateDepartmentFormData } from '../schemas.js';
-import type { Ticket as TicketType, Department, User } from '@/types/index.js';
+import type { Ticket as TicketType, Department, User, RequestType, Utility, TicketPriority } from '@/types/index.js';
 import { getStatusVariant, getPriorityVariant } from '@/components/ui/index.js';
 import styles from './DepartmentDetailPage.module.css';
+
+const PRIORITY_OPTIONS = [
+  { value: 'low', label: '● Low' },
+  { value: 'medium', label: '● Medium' },
+  { value: 'high', label: '● High' },
+  { value: 'critical', label: '● Critical' },
+];
+
+interface RequestTypeFormState {
+  name: string;
+  description: string;
+  priority: TicketPriority;
+  responseTimeHours: number;
+  resolutionTimeHours: number;
+}
+
+function toPayload(f: RequestTypeFormState): CreateRequestTypePayload {
+  return {
+    name: f.name,
+    description: f.description,
+    priority: f.priority,
+    sla: {
+      responseTimeMs: f.responseTimeHours * 60 * 60 * 1000,
+      resolutionTimeMs: f.resolutionTimeHours * 60 * 60 * 1000,
+    },
+  };
+}
+
+interface RequestTypeRowProps {
+  requestType: RequestType;
+  onSave: (id: string, payload: CreateRequestTypePayload) => Promise<void>;
+  onRemove: (id: string) => void;
+}
+
+function requestTypeToForm(requestType: RequestType): RequestTypeFormState {
+  return {
+    name: requestType.name,
+    description: requestType.description,
+    priority: requestType.priority,
+    responseTimeHours: msToHours(requestType.sla.responseTimeMs),
+    resolutionTimeHours: msToHours(requestType.sla.resolutionTimeMs),
+  };
+}
+
+function RequestTypeRow({ requestType, onSave, onRemove }: RequestTypeRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [state, setState] = useState({ form: requestTypeToForm(requestType), saving: false });
+  const { form, saving } = state;
+
+  function setForm(updater: (f: RequestTypeFormState) => RequestTypeFormState) {
+    setState((s) => ({ ...s, form: updater(s.form) }));
+  }
+
+  function resetForm() {
+    setState((s) => ({ ...s, form: requestTypeToForm(requestType) }));
+  }
+
+  async function handleSave() {
+    if (!form.name.trim() || !form.description.trim()) return;
+    setState((s) => ({ ...s, saving: true }));
+    try {
+      await onSave(requestType.id, toPayload(form));
+      setEditing(false);
+    } finally {
+      setState((s) => ({ ...s, saving: false }));
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className={styles.requestTypeCard}>
+        <div className={styles.row}>
+          <Input label="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          <Select
+            label="Priority"
+            options={PRIORITY_OPTIONS}
+            value={form.priority}
+            onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as TicketPriority }))}
+          />
+        </div>
+        <Textarea
+          label="Description"
+          rows={2}
+          value={form.description}
+          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+        />
+        <div className={styles.row}>
+          <Input
+            label="Response Time (hours)"
+            type="number"
+            step="0.5"
+            min="0.5"
+            value={form.responseTimeHours}
+            onChange={(e) => setForm((f) => ({ ...f, responseTimeHours: Number(e.target.value) }))}
+          />
+          <Input
+            label="Resolution Time (hours)"
+            type="number"
+            step="1"
+            min="1"
+            value={form.resolutionTimeHours}
+            onChange={(e) => setForm((f) => ({ ...f, resolutionTimeHours: Number(e.target.value) }))}
+          />
+        </div>
+        <div className={styles.formActions}>
+          <Button size="sm" variant="ghost" onClick={() => { setEditing(false); resetForm(); }} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" leftIcon={<Save size={14} />} loading={saving} onClick={() => void handleSave()}>
+            Save
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.requestTypeCard}>
+      <div className={styles.requestTypeCardHeader}>
+        <div>
+          <span className={styles.requestTypeName}>{requestType.name}</span>
+          <Badge variant={getPriorityVariant(requestType.priority)} size="sm">{requestType.priority}</Badge>
+        </div>
+        <div className={styles.requestTypeActions}>
+          <button type="button" className={styles.removeBtn} onClick={() => setEditing(true)} aria-label={`Edit ${requestType.name}`}>
+            <Pencil size={15} />
+          </button>
+          <button type="button" className={styles.removeBtn} onClick={() => onRemove(requestType.id)} aria-label={`Remove ${requestType.name}`}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+      {requestType.description && <p className={styles.descText}>{requestType.description}</p>}
+      <div className={styles.statGrid}>
+        <div className={styles.statItem}>
+          <span className={styles.statLabel}>Response Time</span>
+          <span className={styles.statValue}>{msToHours(requestType.sla.responseTimeMs)}h</span>
+        </div>
+        <div className={styles.statItem}>
+          <span className={styles.statLabel}>Resolution Time</span>
+          <span className={styles.statValue}>{msToHours(requestType.sla.resolutionTimeMs)}h</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const ROUTING_OPTIONS = [
   {
@@ -47,6 +197,8 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'members', label: 'Members' },
   { id: 'tickets', label: 'Tickets' },
+  { id: 'requestTypes', label: 'Request Types' },
+  { id: 'utilities', label: 'Utilities' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -54,19 +206,52 @@ function msToHours(ms: number): number {
   return ms / (1000 * 60 * 60);
 }
 
+const EMPTY_REQUEST_TYPE_FORM: RequestTypeFormState = {
+  name: '',
+  description: '',
+  priority: 'medium',
+  responseTimeHours: 1,
+  resolutionTimeHours: 8,
+};
+
+const TAB_IDS = TABS.map((t) => t.id);
+const DEFAULT_TAB = TAB_IDS[0];
+
+interface ConfirmTarget {
+  kind: 'member' | 'requestType';
+  id: string;
+}
+
 export function DepartmentDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const addToast = useUIStore((s) => s.addToast);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const rawTab = searchParams.get('tab');
+  const activeTab = rawTab && TAB_IDS.includes(rawTab) ? rawTab : DEFAULT_TAB;
+  function setActiveTab(tab: string): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  }
 
   const [dept, setDept] = useState<Department | null>(null);
-  const [deptTickets] = useState<TicketType[]>([]);
+  const [deptTickets, setDeptTickets] = useState<TicketType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+  const [allUtilities, setAllUtilities] = useState<Utility[]>([]);
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
+
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [selectedAddUserId, setSelectedAddUserId] = useState('');
+
+  const [utilitiesTab, setUtilitiesTab] = useState({ selectedIds: [] as string[], saving: false });
+
+  const [newRequestType, setNewRequestType] = useState({ form: EMPTY_REQUEST_TYPE_FORM, saving: false });
 
   const addMemberModal = useModal();
   const deleteModal = useModal();
@@ -93,7 +278,9 @@ export function DepartmentDetailPage(): ReactElement {
 
   const fetchDept = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
+    // Only show the full-page loader on the very first load — mutations (add/remove member,
+    // save request types/utilities, etc.) refetch in the background without unmounting the page.
+    setLoading((prev) => (dept ? prev : true));
     setError(null);
     try {
       const data = await departmentsApi.get(id);
@@ -105,6 +292,7 @@ export function DepartmentDetailPage(): ReactElement {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, addToast]);
 
   useEffect(() => {
@@ -114,6 +302,20 @@ export function DepartmentDetailPage(): ReactElement {
   useEffect(() => {
     void usersApi.list({ limit: 500 }).then((res) => setAllUsers(res.data));
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    void ticketsApi.list({ departmentIds: [id], limit: 50 }).then((res) => setDeptTickets(res.data));
+  }, [id]);
+
+  useEffect(() => {
+    void utilitiesApi.list({ status: 'active' }).then((res) => setAllUtilities(res.data));
+    void departmentsApi.list({ limit: 500 }).then((res) => setAllDepartments(res.data));
+  }, []);
+
+  useEffect(() => {
+    setUtilitiesTab((s) => ({ ...s, selectedIds: dept?.utilityIds ?? [] }));
+  }, [dept]);
 
   useEffect(() => {
     if (!dept) return;
@@ -196,11 +398,11 @@ export function DepartmentDetailPage(): ReactElement {
     }
   }
 
-  async function handleRemoveMember(): Promise<void> {
-    if (!dept || !removeMemberId) return;
+  async function handleRemoveMember(memberId: string): Promise<void> {
+    if (!dept) return;
     try {
-      await departmentsApi.removeMember(dept.id, removeMemberId);
-      setRemoveMemberId(null);
+      await departmentsApi.removeMember(dept.id, memberId);
+      setConfirmTarget(null);
       addToast({ type: 'success', message: 'Member removed' });
       void fetchDept();
     } catch (err) {
@@ -217,6 +419,57 @@ export function DepartmentDetailPage(): ReactElement {
       void navigate('/departments');
     } catch (err) {
       addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to delete department' });
+    }
+  }
+
+  async function handleAddRequestType(): Promise<void> {
+    if (!dept || !newRequestType.form.name.trim() || !newRequestType.form.description.trim()) return;
+    setNewRequestType((s) => ({ ...s, saving: true }));
+    try {
+      await departmentsApi.createRequestType(dept.id, toPayload(newRequestType.form));
+      setNewRequestType({ form: EMPTY_REQUEST_TYPE_FORM, saving: false });
+      addToast({ type: 'success', message: 'Request type added' });
+      await fetchDept();
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to add request type' });
+      setNewRequestType((s) => ({ ...s, saving: false }));
+    }
+  }
+
+  async function handleSaveRequestType(requestTypeId: string, payload: CreateRequestTypePayload): Promise<void> {
+    if (!dept) return;
+    try {
+      await departmentsApi.updateRequestType(dept.id, requestTypeId, payload);
+      addToast({ type: 'success', message: 'Request type updated' });
+      await fetchDept();
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update request type' });
+    }
+  }
+
+  async function handleRemoveRequestType(requestTypeId: string): Promise<void> {
+    if (!dept) return;
+    try {
+      await departmentsApi.removeRequestType(dept.id, requestTypeId);
+      setConfirmTarget(null);
+      addToast({ type: 'success', message: 'Request type removed' });
+      await fetchDept();
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to remove request type' });
+    }
+  }
+
+  async function handleSaveUtilities(): Promise<void> {
+    if (!dept) return;
+    setUtilitiesTab((s) => ({ ...s, saving: true }));
+    try {
+      const updated = await departmentsApi.update(dept.id, { utilityIds: utilitiesTab.selectedIds });
+      setDept(updated);
+      addToast({ type: 'success', message: 'Utilities updated' });
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update utilities' });
+    } finally {
+      setUtilitiesTab((s) => ({ ...s, saving: false }));
     }
   }
 
@@ -402,7 +655,7 @@ export function DepartmentDetailPage(): ReactElement {
                     <button
                       type="button"
                       className={styles.removeBtn}
-                      onClick={() => setRemoveMemberId(member.id)}
+                      onClick={() => setConfirmTarget({ kind: 'member', id: member.id })}
                       aria-label={`Remove ${member.name}`}
                     >
                       <Trash2 size={15} />
@@ -431,6 +684,156 @@ export function DepartmentDetailPage(): ReactElement {
               />
             }
           />
+        </div>
+      )}
+
+      {/* ── Request Types tab ─────────────────────── */}
+      {activeTab === 'requestTypes' && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3 className={styles.sectionTitle}>
+              Request Types
+              <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-normal)', marginLeft: 'var(--space-2)' }}>
+                ({(dept.requestTypes ?? []).length})
+              </span>
+            </h3>
+          </div>
+
+          <div className={styles.card}>
+            <h3 className={styles.cardTitle}>Add Request Type</h3>
+            <div className={styles.editForm}>
+              <div className={styles.row}>
+                <Input
+                  label="Name"
+                  placeholder="e.g. VPN / Network Access"
+                  value={newRequestType.form.name}
+                  onChange={(e) => setNewRequestType((s) => ({ ...s, form: { ...s.form, name: e.target.value } }))}
+                />
+                <Select
+                  label="Priority"
+                  options={PRIORITY_OPTIONS}
+                  value={newRequestType.form.priority}
+                  onChange={(e) => setNewRequestType((s) => ({ ...s, form: { ...s.form, priority: e.target.value as TicketPriority } }))}
+                />
+              </div>
+              <Textarea
+                label="Description"
+                rows={2}
+                placeholder="What this request type covers"
+                value={newRequestType.form.description}
+                onChange={(e) => setNewRequestType((s) => ({ ...s, form: { ...s.form, description: e.target.value } }))}
+              />
+              <div className={styles.row}>
+                <Input
+                  label="Response Time (hours)"
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  value={newRequestType.form.responseTimeHours}
+                  onChange={(e) => setNewRequestType((s) => ({ ...s, form: { ...s.form, responseTimeHours: Number(e.target.value) } }))}
+                />
+                <Input
+                  label="Resolution Time (hours)"
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={newRequestType.form.resolutionTimeHours}
+                  onChange={(e) => setNewRequestType((s) => ({ ...s, form: { ...s.form, resolutionTimeHours: Number(e.target.value) } }))}
+                />
+              </div>
+              <div className={styles.formActions}>
+                <Button
+                  leftIcon={<Plus size={14} />}
+                  loading={newRequestType.saving}
+                  disabled={!newRequestType.form.name.trim() || !newRequestType.form.description.trim()}
+                  onClick={() => void handleAddRequestType()}
+                >
+                  Add Request Type
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.requestTypeList}>
+            {(dept.requestTypes ?? []).length === 0 ? (
+              <EmptyState title="No request types yet" description="Add request types so requesters can pick one when filing a ticket for this department." />
+            ) : (
+              (dept.requestTypes ?? []).map((rt) => (
+                <RequestTypeRow
+                  key={rt.id}
+                  requestType={rt}
+                  onSave={handleSaveRequestType}
+                  onRemove={(id) => setConfirmTarget({ kind: 'requestType', id })}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Utilities tab ──────────────────────────── */}
+      {activeTab === 'utilities' && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3 className={styles.sectionTitle}>
+              Utilities
+              <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-normal)', marginLeft: 'var(--space-2)' }}>
+                ({utilitiesTab.selectedIds.length} attached)
+              </span>
+            </h3>
+            <Button
+              size="sm"
+              leftIcon={<Save size={14} />}
+              loading={utilitiesTab.saving}
+              disabled={JSON.stringify([...utilitiesTab.selectedIds].sort()) === JSON.stringify([...(dept.utilityIds ?? [])].sort())}
+              onClick={() => void handleSaveUtilities()}
+            >
+              Save Changes
+            </Button>
+          </div>
+
+          {allUtilities.length === 0 ? (
+            <EmptyState
+              title="No utilities available"
+              description="Create utilities from the Utility admin page to attach them to this department."
+            />
+          ) : (
+            <div className={styles.utilityList}>
+              {allUtilities.map((utility: Utility) => {
+                const checked = utilitiesTab.selectedIds.includes(utility.id);
+                // Utility↔department assignment is treated as exclusive elsewhere in this app
+                // (see CreateDepartmentModal's own utility step) — a utility already assigned
+                // to a different department is shown but not selectable here either.
+                const assignedDeptId = utility.departmentIds.find((did) => did !== dept.id);
+                const assignedDeptName = assignedDeptId
+                  ? allDepartments.find((d) => d.id === assignedDeptId)?.name
+                  : undefined;
+                const isTakenElsewhere = !!assignedDeptId;
+                const description = isTakenElsewhere
+                  ? `Already assigned to ${assignedDeptName ?? 'another department'}`
+                  : `${utility.options.length} option${utility.options.length === 1 ? '' : 's'} · ${
+                      utility.calendar.enabled ? 'Calendar synced' : 'No calendar integration'
+                    }`;
+                return (
+                  <Checkbox
+                    key={utility.id}
+                    label={utility.name}
+                    description={description}
+                    checked={checked}
+                    disabled={isTakenElsewhere}
+                    onChange={(e) => {
+                      setUtilitiesTab((s) => ({
+                        ...s,
+                        selectedIds: e.target.checked
+                          ? [...s.selectedIds, utility.id]
+                          : s.selectedIds.filter((uid) => uid !== utility.id),
+                      }));
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -599,17 +1002,6 @@ export function DepartmentDetailPage(): ReactElement {
         />
       </Modal>
 
-      {/* Remove member confirm */}
-      <ConfirmDialog
-        isOpen={!!removeMemberId}
-        onClose={() => setRemoveMemberId(null)}
-        onConfirm={() => void handleRemoveMember()}
-        title="Remove Member"
-        description="Are you sure you want to remove this member from the department?"
-        confirmLabel="Remove"
-        danger
-      />
-
       {/* Delete department confirm */}
       <ConfirmDialog
         isOpen={deleteModal.isOpen}
@@ -618,6 +1010,24 @@ export function DepartmentDetailPage(): ReactElement {
         title="Delete Department"
         description={`Are you sure you want to delete "${dept.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
+        danger
+      />
+
+      {/* Remove member / request type confirm */}
+      <ConfirmDialog
+        isOpen={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          if (confirmTarget?.kind === 'member') void handleRemoveMember(confirmTarget.id);
+          if (confirmTarget?.kind === 'requestType') void handleRemoveRequestType(confirmTarget.id);
+        }}
+        title={confirmTarget?.kind === 'requestType' ? 'Remove Request Type' : 'Remove Member'}
+        description={
+          confirmTarget?.kind === 'requestType'
+            ? 'Are you sure you want to remove this request type? Requesters will no longer be able to select it.'
+            : 'Are you sure you want to remove this member from the department?'
+        }
+        confirmLabel="Remove"
         danger
       />
     </PageWrapper>

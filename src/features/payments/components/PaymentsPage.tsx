@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Payment, PaymentStatus } from '@/types/index';
@@ -14,6 +14,8 @@ import styles from './PaymentsPage.module.css';
 
 type TabFilter = PaymentStatus | 'all';
 
+const TAB_FILTERS: TabFilter[] = ['all', 'pending', 'completed', 'failed'];
+
 const METHOD_LABELS: Record<string, string> = {
   bank_transfer: 'Bank Transfer',
   paystack: 'Paystack',
@@ -27,22 +29,40 @@ function formatAmount(amount: number, currency: string): string {
 
 export function PaymentsPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabFilter>('all');
-  const [search, setSearch] = useState('');
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const rawTab = searchParams.get('tab');
+  const activeTab: TabFilter = rawTab && TAB_FILTERS.includes(rawTab as TabFilter) ? (rawTab as TabFilter) : 'all';
+  const search = searchParams.get('q') ?? '';
+
+  function setActiveTab(tab: TabFilter): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  }
+
+  function setSearch(value: string): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set('q', value);
+      else next.delete('q');
+      return next;
+    });
+  }
+
+  const [state, setState] = useState({ payments: [] as Payment[], loading: true, total: 0 });
+  const { payments, loading, total } = state;
 
   async function loadPayments() {
     try {
-      setLoading(true);
+      setState((s) => ({ ...s, loading: true }));
       const res = await paymentsApi.list({ page: 1, limit: 25 });
-      setPayments(res.data);
-      setTotal(res.total);
+      setState({ payments: res.data, loading: false, total: res.total });
     } catch {
       toast({ type: 'error', message: 'Failed to load payments' });
-    } finally {
-      setLoading(false);
+      setState((s) => ({ ...s, loading: false }));
     }
   }
 
@@ -119,7 +139,7 @@ export function PaymentsPage() {
     {
       key: 'initiatedBy',
       header: 'Initiated By',
-      render: (p) => <span style={{ fontSize: 'var(--font-size-sm)' }}>{p.initiatedBy}</span>,
+      render: (p) => <span style={{ fontSize: 'var(--font-size-sm)' }}>{p.initiatedByName ?? p.initiatedBy}</span>,
     },
     {
       key: 'initiatedAt',
@@ -133,7 +153,7 @@ export function PaymentsPage() {
       render: (p) =>
         p.ticketId ? (
           <Link to={`/tickets/${p.ticketId}`} className={styles.ticketChip}>
-            {p.ticketId} <ExternalLink size={10} />
+            {p.ticketTitle ?? p.ticketId} <ExternalLink size={10} />
           </Link>
         ) : (
           <span style={{ color: 'var(--color-text-disabled)' }}>—</span>

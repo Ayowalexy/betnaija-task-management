@@ -10,21 +10,26 @@ export function TicketListPage(): ReactElement {
   const currentUser = useAuthStore((s) => s.currentUser);
   const filters = useTicketStore((s) => s.filters);
 
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState({ tickets: [] as Ticket[], total: 0, loading: true, error: null as string | null });
+  const { tickets, total, loading, error } = state;
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const isAdmin = currentUser?.role === 'root_admin';
 
   const title = isAdmin ? 'All Tickets' : 'Department Tickets';
 
+  // Filters changing invalidates whatever page we were on — go back to page 1 rather than
+  // requesting e.g. page 4 of a now much-smaller filtered result set.
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    setState((s) => ({ ...s, loading: true, error: null }));
 
-    const apiFilters: Parameters<typeof ticketsApi.list>[0] = { ...filters };
+    const apiFilters: Parameters<typeof ticketsApi.list>[0] = { ...filters, page, limit: PAGE_SIZE };
     if (!isAdmin && currentUser?.departmentId) {
       apiFilters.departmentIds = [currentUser.departmentId];
     }
@@ -32,20 +37,17 @@ export function TicketListPage(): ReactElement {
     ticketsApi.list(apiFilters)
       .then((res) => {
         if (!cancelled) {
-          setTickets(res.data);
-          setTotal(res.total);
-          setLoading(false);
+          setState((s) => ({ ...s, tickets: res.data, total: res.total, loading: false }));
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setError('Failed to load tickets');
-          setLoading(false);
+          setState((s) => ({ ...s, error: 'Failed to load tickets', loading: false }));
         }
       });
 
     return () => { cancelled = true; };
-  }, [filters, isAdmin, currentUser?.departmentId]);
+  }, [filters, page, isAdmin, currentUser?.departmentId]);
 
   return (
     <TicketList
@@ -57,6 +59,9 @@ export function TicketListPage(): ReactElement {
       showDepartmentFilter={isAdmin}
       showDepartmentColumn={isAdmin}
       showAssigneeFilter={isAdmin}
+      page={page}
+      pageSize={PAGE_SIZE}
+      onPageChange={setPage}
     />
   );
 }

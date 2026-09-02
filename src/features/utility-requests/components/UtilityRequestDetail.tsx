@@ -2,28 +2,25 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ArrowLeft, CheckCircle2, XCircle, Ban, Pencil, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/index.js';
-import { Avatar } from '@/components/ui/index.js';
 import { Badge } from '@/components/ui/index.js';
 import { EmptyState } from '@/components/shared/EmptyState.js';
 import { DataTable } from '@/components/shared/DataTable.js';
 import type { Column } from '@/components/shared/DataTable.js';
-import { useUtilityRequestStore } from '@/store/utilityRequestStore.js';
 import { useAuthStore } from '@/store/authStore.js';
 import { useModal } from '@/hooks/useModal.js';
 import { useToast } from '@/hooks/useToast.js';
-import { getDeptById } from '@/mocks/departments.js';
-import { getUserById } from '@/mocks/users.js';
-import { getUtilityById } from '@/mocks/utilities.js';
+import { utilityRequestsApi } from '@/api/utility-requests.js';
 import { useUtilityRequestActions } from '../hooks/useUtilityRequestActions.js';
 import { STATUS_LABELS, getUtilityRequestStatusVariant } from '../types.js';
 import { UtilityRequestCommentThread } from './UtilityRequestCommentThread.js';
 import { RejectRequestModal } from './RejectRequestModal.js';
 import { EditUtilityRequestModal } from './EditUtilityRequestModal.js';
-import type { UtilityRequestLogEntry } from '@/types/index.js';
+import type { UtilityRequest, UtilityRequestLogEntry } from '@/types/index.js';
 import styles from './UtilityRequestDetail.module.css';
 
 interface UtilityRequestDetailProps {
-  requestId: string;
+  request: UtilityRequest;
+  onRefresh: () => void;
 }
 
 const LOG_ACTION_LABELS: Record<UtilityRequestLogEntry['action'], string> = {
@@ -35,34 +32,13 @@ const LOG_ACTION_LABELS: Record<UtilityRequestLogEntry['action'], string> = {
   completed: 'Completed',
 };
 
-export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
+export function UtilityRequestDetail({ request, onRefresh }: UtilityRequestDetailProps) {
   const navigate = useNavigate();
-  const requests = useUtilityRequestStore((s) => s.requests);
-  const updateRequest = useUtilityRequestStore((s) => s.updateRequest);
-  const addLogEntry = useUtilityRequestStore((s) => s.addLogEntry);
   const currentUser = useAuthStore((s) => s.currentUser);
-  const { approveRequest, rejectRequest, cancelRequest, completeRequest } = useUtilityRequestActions();
+  const { approveRequest, rejectRequest, cancelRequest, completeRequest } = useUtilityRequestActions(onRefresh);
   const { toast } = useToast();
   const rejectModal = useModal();
   const editModal = useModal();
-
-  const request = requests.find((r) => r.id === requestId);
-
-  if (!request) {
-    return (
-      <div className={styles.notFound}>
-        <EmptyState title="Request not found" description="This utility request doesn't exist or has been deleted." />
-        <Button variant="ghost" leftIcon={<ArrowLeft size={14} />} onClick={() => navigate('/utility-requests')}>
-          Back to Utility Requests
-        </Button>
-      </div>
-    );
-  }
-
-  const utility = getUtilityById(request.utilityId);
-  const option = utility?.options.find((o) => o.id === request.utilityOptionId);
-  const dept = getDeptById(request.departmentId);
-  const requestor = getUserById(request.requestorId);
 
   const role = currentUser?.role;
   const isRequestor = currentUser?.id === request.requestorId;
@@ -76,21 +52,18 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
   const canCancel = isRequestor && (request.status === 'pending' || request.status === 'approved');
   const canEdit = isRequestor && (request.status === 'pending' || request.status === 'approved');
 
-  function handleReject(reason: string): void {
-    rejectRequest(request!.id, reason);
+  async function handleReject(reason: string): Promise<void> {
+    await rejectRequest(request.id, reason);
   }
 
-  function handleSaveEdit(data: { utilityOptionId: string; date: string; startTime: string; endTime: string; details: string }): void {
-    if (!currentUser) return;
-    updateRequest(request!.id, data);
-    addLogEntry(request!.id, {
-      id: `url-${request!.id}-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      actorId: currentUser.id,
-      action: 'updated',
-      note: 'Request details updated by requester.',
-    });
-    toast({ type: 'success', message: 'Request updated.' });
+  async function handleSaveEdit(data: { utilityOptionId: string; date: string; startTime: string; endTime: string; details: string }): Promise<void> {
+    try {
+      await utilityRequestsApi.update(request.id, data);
+      toast({ type: 'success', message: 'Request updated.' });
+      onRefresh();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update request.' });
+    }
   }
 
   const logColumns: Column<UtilityRequestLogEntry>[] = [
@@ -107,10 +80,9 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
       key: 'actor',
       header: 'By',
       width: '160px',
-      render: (entry) => {
-        const actor = getUserById(entry.actorId);
-        return <span className={styles.logActor}>{actor?.name ?? entry.actorId}</span>;
-      },
+      render: (entry) => (
+        <span className={styles.logActor}>{entry.actorName ?? entry.actorId}</span>
+      ),
     },
     {
       key: 'action',
@@ -124,6 +96,8 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
       render: (entry) => <span className={styles.logNote}>{entry.note ?? '—'}</span>,
     },
   ];
+
+  const log = request.log ?? [];
 
   return (
     <div className={styles.page}>
@@ -141,7 +115,7 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
         {/* Left Panel */}
         <div className={styles.leftPanel}>
           <div className={styles.titleRow}>
-            <h1 className={styles.title}>{utility?.name ?? request.utilityId}</h1>
+            <h1 className={styles.title}>{request.utilityName ?? request.utilityId}</h1>
             {canEdit && (
               <button type="button" className={styles.editBtn} onClick={editModal.open} aria-label="Edit request">
                 <Pencil size={14} />
@@ -153,8 +127,8 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
             <Badge variant={getUtilityRequestStatusVariant(request.status)} dot>
               {STATUS_LABELS[request.status]}
             </Badge>
-            {option && <span className={styles.optionBadge}>{option.name}</span>}
-            {dept && <span className={styles.deptBadge}>{dept.name}</span>}
+            {request.utilityOptionName && <span className={styles.optionBadge}>{request.utilityOptionName}</span>}
+            {request.departmentName && <span className={styles.deptBadge}>{request.departmentName}</span>}
           </div>
 
           {request.status === 'rejected' && request.rejectionReason && (
@@ -164,7 +138,7 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
           )}
 
           <div className={styles.description}>
-            {request.details.split('\n').map((para, i) => (
+            {(request.details ?? '').split('\n').map((para, i) => (
               <p key={i} className={styles.descPara}>{para}</p>
             ))}
           </div>
@@ -172,17 +146,7 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
           {/* Meta grid */}
           <div className={styles.metaGrid}>
             <span className={styles.metaLabel}>Requestor</span>
-            <span className={styles.metaValue}>
-              {requestor ? (
-                <span className={styles.userChip}>
-                  <Avatar initials={requestor.avatarInitials} color={requestor.avatarColor} size="xs" name={requestor.name} />
-                  <span>
-                    <span className={styles.userName}>{requestor.name}</span>
-                    <span className={styles.userEmail}>{requestor.email}</span>
-                  </span>
-                </span>
-              ) : '—'}
-            </span>
+            <span className={styles.metaValue}>{request.requestorName ?? '—'}</span>
             <span className={styles.metaLabel}>Date</span>
             <span className={styles.metaValue}>{format(new Date(request.date), 'EEEE, MMM d, yyyy')}</span>
             <span className={styles.metaLabel}>Time</span>
@@ -218,7 +182,7 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
 
         {/* Right Panel */}
         <div className={styles.rightPanel}>
-          <UtilityRequestCommentThread requestId={request.id} comments={request.comments} />
+          <UtilityRequestCommentThread requestId={request.id} />
         </div>
       </div>
 
@@ -227,7 +191,7 @@ export function UtilityRequestDetail({ requestId }: UtilityRequestDetailProps) {
         <h3 className={styles.logTitle}>Activity Log</h3>
         <DataTable
           columns={logColumns}
-          data={[...request.log].sort(
+          data={[...log].sort(
             (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           )}
           keyExtractor={(entry) => entry.id}

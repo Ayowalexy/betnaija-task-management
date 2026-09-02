@@ -25,7 +25,8 @@ export function DepartmentCard({ department, onClick, headName, headInitials, he
   const routingLabel = isRoster ? 'Roster-Based' : 'All-Notify';
   const iconClass = isRoster ? styles.roster : styles.allNotify;
   const badgeClass = isRoster ? styles.roster : styles.allNotify;
-  const totalMembers = department.memberIds.length + 1; // +1 for head
+  // The head is already included in memberIds (backend adds them as a member on assignment).
+  const totalMembers = department.memberIds.length;
 
   return (
     <button

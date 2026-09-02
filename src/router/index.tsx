@@ -37,6 +37,7 @@ import { UsersPage } from '../features/users/components/UsersPage';
 // Other pages
 import { AnalyticsPage } from '../features/analytics/components/AnalyticsPage';
 import { RosterPage } from '../features/roster/components/RosterPage';
+import { DepartmentUtilitiesPage } from '../features/utilities/components/DepartmentUtilitiesPage';
 import { ChatPage } from '../features/chat/components/ChatPage';
 import { NotificationsPage } from '../features/notifications/components/NotificationsPage';
 import { SettingsPage } from '../features/settings/components/SettingsPage';
@@ -185,6 +186,16 @@ export const router = createBrowserRouter([
           <ErrorBoundary>
             <RoleGuard allowed={['dept_head']}>
               <RosterPage />
+            </RoleGuard>
+          </ErrorBoundary>
+        ),
+      },
+      {
+        path: '/department-utilities',
+        element: (
+          <ErrorBoundary>
+            <RoleGuard allowed={['dept_head']}>
+              <DepartmentUtilitiesPage />
             </RoleGuard>
           </ErrorBoundary>
         ),

@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Bell, Inbox, AlertTriangle, CheckCircle2, MessageSquare,
-  CreditCard, TrendingUp, ArrowRightLeft,
+  CreditCard, TrendingUp, ArrowRightLeft, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import type { Notification, NotificationType } from '@/types/index.js';
 import { notificationsApi } from '@/api/notifications.js';
 import { useToast } from '@/hooks/useToast.js';
+import { usePagination } from '@/hooks/usePagination.js';
 import { Button, Tabs } from '@/components/ui/index.js';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
 import styles from './NotificationsPage.module.css';
 
 type FilterTab = 'all' | 'unread' | 'tickets' | 'sla' | 'payments';
+
+const FILTER_TABS: FilterTab[] = ['all', 'unread', 'tickets', 'sla', 'payments'];
+
+const PAGE_SIZE = 10;
 
 interface IconConfig {
   icon: ReactElement;
@@ -46,24 +51,37 @@ function matchesTab(n: Notification, tab: FilterTab): boolean {
 export function NotificationsPage(): ReactElement {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<FilterTab>('all');
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const rawTab = searchParams.get('tab');
+  const activeTab: FilterTab = rawTab && FILTER_TABS.includes(rawTab as FilterTab) ? (rawTab as FilterTab) : 'all';
+
+  function setActiveTab(tab: FilterTab): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  }
+
+  const [state, setState] = useState({ notifications: [] as Notification[], loading: true, unreadCount: 0 });
+  const { notifications, loading, unreadCount } = state;
 
   async function loadNotifications() {
     try {
-      setLoading(true);
-      const res = await notificationsApi.list({ page: 1, limit: 50 });
+      setState((s) => ({ ...s, loading: true }));
+      const res = await notificationsApi.list({ page: 1, limit: 100 });
       const sorted = [...res.data].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-      setNotifications(sorted);
-      setUnreadCount(res.unreadCount ?? sorted.filter((n) => !n.isRead).length);
+      setState({
+        notifications: sorted,
+        loading: false,
+        unreadCount: res.unreadCount ?? sorted.filter((n) => !n.isRead).length,
+      });
     } catch {
       toast({ type: 'error', message: 'Failed to load notifications' });
-    } finally {
-      setLoading(false);
+      setState((s) => ({ ...s, loading: false }));
     }
   }
 
@@ -86,18 +104,31 @@ export function NotificationsPage(): ReactElement {
     if (!notif.isRead) {
       try {
         await notificationsApi.markRead(notif.id);
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-        );
-        setUnreadCount((c) => Math.max(0, c - 1));
+        setState((s) => ({
+          ...s,
+          notifications: s.notifications.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n)),
+          unreadCount: Math.max(0, s.unreadCount - 1),
+        }));
       } catch {
         // best-effort
       }
     }
     if (notif.ticketId) navigate(`/tickets/${notif.ticketId}`);
+    else if (notif.utilityRequestId) navigate(`/utility-requests/${notif.utilityRequestId}`);
   }
 
-  const filtered = notifications.filter((n) => matchesTab(n, activeTab));
+  const filtered = useMemo(
+    () => notifications.filter((n) => matchesTab(n, activeTab)),
+    [notifications, activeTab]
+  );
+
+  const { page, totalPages, paginatedItems, goToPage, nextPage, prevPage, canNext, canPrev } =
+    usePagination(filtered, PAGE_SIZE);
+
+  function handleTabChange(id: string): void {
+    setActiveTab(id as FilterTab);
+    goToPage(1);
+  }
 
   const tabs = [
     { id: 'all', label: 'All', count: notifications.length },
@@ -118,7 +149,7 @@ export function NotificationsPage(): ReactElement {
       }
     >
       <div className={styles.tabsRow}>
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={(id) => setActiveTab(id as FilterTab)} variant="pill" />
+        <Tabs tabs={tabs} activeTab={activeTab} onChange={handleTabChange} variant="pill" />
         {unreadCount > 0 && (
           <span className={styles.unreadBadge}>{unreadCount} unread</span>
         )}
@@ -135,38 +166,80 @@ export function NotificationsPage(): ReactElement {
           <p className={styles.emptySubtitle}>No notifications here.</p>
         </div>
       ) : (
-        <div className={styles.list}>
-          {filtered.map((n) => {
-            const cfg = getIconConfig(n.type);
-            return (
-              <button
-                key={n.id}
-                className={[styles.item, !n.isRead ? styles.itemUnread : ''].filter(Boolean).join(' ')}
-                onClick={() => handleClick(n)}
-              >
-                <span
-                  className={styles.iconCircle}
-                  style={{ background: cfg.bg, color: cfg.color }}
-                  aria-hidden="true"
+        <>
+          <div className={styles.list}>
+            {paginatedItems.map((n) => {
+              const cfg = getIconConfig(n.type);
+              return (
+                <button
+                  key={n.id}
+                  className={[styles.item, !n.isRead ? styles.itemUnread : ''].filter(Boolean).join(' ')}
+                  onClick={() => handleClick(n)}
                 >
-                  {cfg.icon}
-                </span>
-
-                <div className={styles.body}>
-                  <p className={styles.title}>{n.title}</p>
-                  <p className={styles.message}>{n.message}</p>
-                </div>
-
-                <div className={styles.right}>
-                  <span className={styles.time}>
-                    {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                  <span
+                    className={styles.iconCircle}
+                    style={{ background: cfg.bg, color: cfg.color }}
+                    aria-hidden="true"
+                  >
+                    {cfg.icon}
                   </span>
-                  {!n.isRead && <span className={styles.dot} aria-label="Unread" />}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+
+                  <div className={styles.body}>
+                    <p className={styles.title}>{n.title}</p>
+                    <p className={styles.message}>{n.message}</p>
+                  </div>
+
+                  <div className={styles.right}>
+                    <span className={styles.time}>
+                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                    </span>
+                    {!n.isRead && <span className={styles.dot} aria-label="Unread" />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div className={styles.pagination} role="navigation" aria-label="Notifications pagination">
+              <span className={styles.paginationInfo}>
+                Page {page} of {totalPages}
+              </span>
+              <div className={styles.paginationControls}>
+                <button
+                  type="button"
+                  className={styles.pageBtn}
+                  onClick={prevPage}
+                  disabled={!canPrev}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`${styles.pageBtn}${p === page ? ` ${styles.active}` : ''}`}
+                    onClick={() => goToPage(p)}
+                    aria-label={`Page ${p}`}
+                    aria-current={p === page ? 'page' : undefined}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={styles.pageBtn}
+                  onClick={nextPage}
+                  disabled={!canNext}
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </PageWrapper>
   );

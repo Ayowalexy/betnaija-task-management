@@ -52,10 +52,8 @@ export function DepartmentsPage(): ReactElement {
 
   const totalDepts = departments.length;
   const totalActiveTickets = departments.reduce((sum, d) => sum + d.activeTicketCount, 0);
-  const totalMembers = departments.reduce(
-    (sum, d) => sum + d.memberIds.length + 1, // +1 for head
-    0,
-  );
+  // The head is already included in memberIds (backend adds them as a member on assignment).
+  const totalMembers = departments.reduce((sum, d) => sum + d.memberIds.length, 0);
 
   const actions = (
     <Button leftIcon={<Plus size={16} />} onClick={open}>

@@ -1,7 +1,37 @@
-.container {
-  padding: var(--space-3) var(--space-4);
+.wrapper {
   border-top: 1px solid var(--color-border-default);
   background: var(--color-bg-elevated);
+}
+
+.stagedFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.stagedFileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+}
+
+.stagedFileChip button {
+  display: inline-flex;
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.container {
+  padding: var(--space-3) var(--space-4);
   display: flex;
   align-items: flex-end;
   gap: var(--space-2);

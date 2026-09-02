@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import type { Shift } from '@/types/index';
-import { Modal, Button } from '@/components/ui/index';
+import { useState, useEffect } from 'react';
+import type { Shift, User } from '@/types/index';
+import { Modal, Button, Select } from '@/components/ui/index';
+import { usersApi } from '@/api/users';
 
 interface AddShiftModalProps {
   isOpen: boolean;
@@ -9,29 +10,30 @@ interface AddShiftModalProps {
   departmentId: string;
 }
 
+const EMPTY_SHIFT_FORM = { userId: '', date: '', startTime: '09:00', endTime: '17:00', error: '' };
+
 export function AddShiftModal({ isOpen, onClose, onAdd, departmentId }: AddShiftModalProps) {
-  const [userId, setUserId] = useState('');
-  const [date, setDate] = useState('');
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('17:00');
-  const [error, setError] = useState('');
+  const [members, setMembers] = useState<User[]>([]);
+  const [form, setForm] = useState(EMPTY_SHIFT_FORM);
+  const { userId, date, startTime, endTime, error } = form;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void usersApi.list({ departmentId, limit: 200 }).then((res) => setMembers(res.data));
+  }, [isOpen, departmentId]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!userId.trim() || !date || !startTime || !endTime) {
-      setError('All fields are required.');
+    if (!userId || !date || !startTime || !endTime) {
+      setForm((f) => ({ ...f, error: 'All fields are required.' }));
       return;
     }
     if (startTime >= endTime) {
-      setError('End time must be after start time.');
+      setForm((f) => ({ ...f, error: 'End time must be after start time.' }));
       return;
     }
-    onAdd({ userId: userId.trim(), departmentId, date, startTime, endTime });
-    setUserId('');
-    setDate('');
-    setStartTime('09:00');
-    setEndTime('17:00');
-    setError('');
+    onAdd({ userId, departmentId, date, startTime, endTime });
+    setForm(EMPTY_SHIFT_FORM);
     onClose();
   }
 
@@ -63,30 +65,25 @@ export function AddShiftModal({ isOpen, onClose, onAdd, departmentId }: AddShift
       </div>
     }>
       <form id="add-shift-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div>
-          <label style={labelStyle}>Team Member (User ID)</label>
-          {/* TODO: Replace with a user-picker once a users-by-department API is available */}
-          <input
-            style={inputStyle}
-            type="text"
-            placeholder="Enter user ID"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            required
-          />
-        </div>
+        <Select
+          label="Team Member"
+          placeholder="Select a team member"
+          value={userId}
+          onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))}
+          options={members.map((m) => ({ value: m.id, label: m.name }))}
+        />
         <div>
           <label style={labelStyle}>Date</label>
-          <input style={inputStyle} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input style={inputStyle} type="date" value={date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} required />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <label style={labelStyle}>Start Time</label>
-            <input style={inputStyle} type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+            <input style={inputStyle} type="time" value={startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} required />
           </div>
           <div>
             <label style={labelStyle}>End Time</label>
-            <input style={inputStyle} type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+            <input style={inputStyle} type="time" value={endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} required />
           </div>
         </div>
         {error && <p style={{ margin: 0, color: 'var(--color-error)', fontSize: 'var(--font-size-xs)' }}>{error}</p>}

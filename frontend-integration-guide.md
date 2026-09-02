@@ -395,13 +395,13 @@ All settings endpoints require `root_admin`.
 
 Attachment URLs returned from `GET /tickets/:id` are pre-signed Cloudinary URLs.
 
-### Chat (Stream.io)
+### Chat (Stream Chat)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/chat/token` | Get Stream.io user token |
-| POST | `/chat/provision-user` | Register user in Stream.io (call on first login) |
-| POST | `/chat/channels` | Create DM or group channel |
+| GET | `/chat/token` | Get a Stream Chat user token |
+
+This is the only chat endpoint — token signing is the only operation that needs the Stream app secret. The frontend uses the token to connect the `stream-chat` JS client directly to Stream and does everything else client-side: `connectUser()` provisions/updates the connecting user's Stream profile, `client.channel(...).watch()` creates or joins channels, and `channel.sendMessage()` / `channel.markRead()` etc. handle messaging, presence and read receipts — none of it is proxied through this API.
 
 ### Profile
 

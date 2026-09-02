@@ -1,17 +1,16 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { format } from 'date-fns';
-import type { UtilityRequest } from '@/types/index.js';
+import type { UtilityRequest, Department, Utility } from '@/types/index.js';
 import { Button } from '@/components/ui/index.js';
 import { Badge } from '@/components/ui/index.js';
 import { DataTable } from '@/components/shared/DataTable.js';
 import type { Column } from '@/components/shared/DataTable.js';
 import { EmptyState } from '@/components/shared/EmptyState.js';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
-import { DEPARTMENTS, getDeptById } from '@/mocks/departments.js';
-import { getUtilityById } from '@/mocks/utilities.js';
-import { useUtilityStore } from '@/store/utilityStore.js';
-import { getUserById } from '@/mocks/users.js';
+import { departmentsApi } from '@/api/departments.js';
+import { utilitiesApi } from '@/api/utilities.js';
 import { useUtilityRequestFilters } from '../hooks/useUtilityRequestFilters.js';
 import { UtilityRequestFilters } from './UtilityRequestFilters.js';
 import { STATUS_LABELS, getUtilityRequestStatusVariant } from '../types.js';
@@ -20,19 +19,35 @@ import styles from './UtilityRequestList.module.css';
 interface UtilityRequestListProps {
   title: string;
   requests: UtilityRequest[];
+  total?: number;
   loading?: boolean;
   showDepartmentFilter?: boolean;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export function UtilityRequestList({
   title,
   requests,
+  total,
   loading = false,
   showDepartmentFilter = true,
+  page,
+  pageSize,
+  onPageChange,
 }: UtilityRequestListProps) {
   const navigate = useNavigate();
-  const { filters, setFilter, resetFilters, filteredRequests } = useUtilityRequestFilters(requests);
-  const utilities = useUtilityStore((s) => s.utilities);
+  const { filters, setFilter, resetFilters } = useUtilityRequestFilters();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [utilities, setUtilities] = useState<Utility[]>([]);
+
+  useEffect(() => {
+    void utilitiesApi.list().then((res) => setUtilities(res.data));
+    if (showDepartmentFilter) {
+      void departmentsApi.list({ limit: 100 }).then((res) => setDepartments(res.data));
+    }
+  }, [showDepartmentFilter]);
 
   const columns: Column<UtilityRequest>[] = [
     {
@@ -44,16 +59,12 @@ export function UtilityRequestList({
     {
       key: 'utility',
       header: 'Utility',
-      render: (r) => {
-        const utility = getUtilityById(r.utilityId);
-        const option = utility?.options.find((o) => o.id === r.utilityOptionId);
-        return (
-          <span className={styles.utilityCell}>
-            <span className={styles.utilityName}>{utility?.name ?? r.utilityId}</span>
-            {option && <span className={styles.optionName}>{option.name}</span>}
-          </span>
-        );
-      },
+      render: (r) => (
+        <span className={styles.utilityCell}>
+          <span className={styles.utilityName}>{r.utilityName ?? r.utilityId}</span>
+          {r.utilityOptionName && <span className={styles.optionName}>{r.utilityOptionName}</span>}
+        </span>
+      ),
     },
     {
       key: 'status',
@@ -69,19 +80,13 @@ export function UtilityRequestList({
       key: 'department',
       header: 'Department',
       width: '130px',
-      render: (r) => {
-        const dept = getDeptById(r.departmentId);
-        return <span className={styles.deptCell}>{dept?.name ?? r.departmentId}</span>;
-      },
+      render: (r) => <span className={styles.deptCell}>{r.departmentName ?? r.departmentId}</span>,
     },
     {
       key: 'requestor',
       header: 'Requestor',
       width: '160px',
-      render: (r) => {
-        const user = getUserById(r.requestorId);
-        return <span className={styles.requestorCell}>{user?.name ?? r.requestorId}</span>;
-      },
+      render: (r) => <span className={styles.requestorCell}>{r.requestorName ?? r.requestorId}</span>,
     },
     {
       key: 'date',
@@ -105,7 +110,7 @@ export function UtilityRequestList({
     },
   ];
 
-  const depts = showDepartmentFilter ? DEPARTMENTS : [];
+  const depts = showDepartmentFilter ? departments : [];
 
   return (
     <PageWrapper
@@ -124,13 +129,21 @@ export function UtilityRequestList({
           departments={depts}
           utilities={utilities}
         />
+        {total !== undefined && (
+          <p className={styles.totalCount}>{total} request{total !== 1 ? 's' : ''} found</p>
+        )}
         <DataTable
           columns={columns}
-          data={filteredRequests}
+          data={requests}
           keyExtractor={(r) => r.id}
           onRowClick={(r) => navigate(`/utility-requests/${r.id}`)}
           loading={loading}
-          pageSize={15}
+          pageSize={pageSize ?? 15}
+          serverPagination={
+            page !== undefined && pageSize !== undefined && onPageChange && total !== undefined
+              ? { page, pageSize, totalItems: total, onPageChange }
+              : undefined
+          }
           stickyHeader
           emptyState={
             <EmptyState

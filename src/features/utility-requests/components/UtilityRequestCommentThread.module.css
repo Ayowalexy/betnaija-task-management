@@ -14,6 +14,13 @@
   border-bottom: 1px solid var(--color-border-default);
 }
 
+.commentListWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .commentList {
   display: flex;
   flex-direction: column;
@@ -21,6 +28,60 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+}
+
+.newMessagePill {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+.typingIndicator {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  margin: 0;
+  height: 16px;
+}
+
+.stagedFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.stagedFileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+}
+
+.stagedFileChip button {
+  display: inline-flex;
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 0;
 }
 
 .empty {
@@ -114,6 +175,11 @@
 
 .reactionBtn:hover {
   background: var(--color-bg-muted);
+}
+
+.reactionBtnActive {
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary);
 }
 
 .commentActions {

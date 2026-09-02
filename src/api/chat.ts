@@ -1,34 +1,17 @@
-import { apiGet, apiPost } from '../lib/apiClient';
+import { apiGet } from '../lib/apiClient';
 
 export interface ChatToken {
   token: string;
+  userId: string;
   apiKey: string;
 }
 
-export interface CreateChannelPayload {
-  type: 'dm' | 'group';
-  memberIds: string[];
-  name?: string;
-}
-
-export interface Channel {
-  id: string;
-  type: string;
-  name: string | null;
-  memberIds: string[];
-  createdAt: string;
-}
-
+// The token endpoint is the only chat call proxied through the backend — it's the only
+// operation that needs the Stream app secret. Everything else (provisioning the user,
+// querying/creating channels, sending messages, presence, read receipts) happens directly
+// between the frontend (see src/lib/streamChat.ts) and Stream once it holds this token.
 export const chatApi = {
   getToken: async (): Promise<ChatToken> => {
     return apiGet<ChatToken>('/chat/token');
-  },
-
-  provisionUser: async (): Promise<void> => {
-    await apiPost('/chat/provision-user');
-  },
-
-  createChannel: async (payload: CreateChannelPayload): Promise<Channel> => {
-    return apiPost<Channel>('/chat/channels', payload);
   },
 };

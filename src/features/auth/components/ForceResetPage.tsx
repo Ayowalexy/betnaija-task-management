@@ -38,8 +38,7 @@ export function ForceResetPage() {
   const isSetupMode = searchParams.get('setup') === '1';
   const setupEmail = isSetupMode ? (sessionStorage.getItem('flowdesk:setup_email') ?? '') : '';
 
-  const [showPw, setShowPw] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [visibility, setVisibility] = useState({ password: false, confirm: false });
   const [pwValue, setPwValue] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -123,13 +122,13 @@ export function ForceResetPage() {
               <div className={styles.inputWrap}>
                 <input
                   id="password"
-                  type={showPw ? 'text' : 'password'}
+                  type={visibility.password ? 'text' : 'password'}
                   autoComplete="new-password"
                   className={`${styles.input} ${setupForm.formState.errors.password ? styles.inputError : ''}`}
                   {...pwRegisterProps}
                 />
-                <button type="button" className={styles.toggleBtn} onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'}>
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                <button type="button" className={styles.toggleBtn} onClick={() => setVisibility((v) => ({ ...v, password: !v.password }))} aria-label={visibility.password ? 'Hide password' : 'Show password'}>
+                  {visibility.password ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {pwValue && (
@@ -150,13 +149,13 @@ export function ForceResetPage() {
               <div className={styles.inputWrap}>
                 <input
                   id="confirmPassword"
-                  type={showConfirm ? 'text' : 'password'}
+                  type={visibility.confirm ? 'text' : 'password'}
                   autoComplete="new-password"
                   className={`${styles.input} ${setupForm.formState.errors.confirmPassword ? styles.inputError : ''}`}
                   {...setupForm.register('confirmPassword')}
                 />
-                <button type="button" className={styles.toggleBtn} onClick={() => setShowConfirm((v) => !v)} aria-label={showConfirm ? 'Hide' : 'Show'}>
-                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                <button type="button" className={styles.toggleBtn} onClick={() => setVisibility((v) => ({ ...v, confirm: !v.confirm }))} aria-label={visibility.confirm ? 'Hide' : 'Show'}>
+                  {visibility.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {setupForm.formState.errors.confirmPassword && (
@@ -178,13 +177,13 @@ export function ForceResetPage() {
               <div className={styles.inputWrap}>
                 <input
                   id="password"
-                  type={showPw ? 'text' : 'password'}
+                  type={visibility.password ? 'text' : 'password'}
                   autoComplete="new-password"
                   className={`${styles.input} ${authForm.formState.errors.password ? styles.inputError : ''}`}
                   {...pwRegisterProps}
                 />
-                <button type="button" className={styles.toggleBtn} onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'}>
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                <button type="button" className={styles.toggleBtn} onClick={() => setVisibility((v) => ({ ...v, password: !v.password }))} aria-label={visibility.password ? 'Hide password' : 'Show password'}>
+                  {visibility.password ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {pwValue && (
@@ -205,13 +204,13 @@ export function ForceResetPage() {
               <div className={styles.inputWrap}>
                 <input
                   id="confirmPassword"
-                  type={showConfirm ? 'text' : 'password'}
+                  type={visibility.confirm ? 'text' : 'password'}
                   autoComplete="new-password"
                   className={`${styles.input} ${authForm.formState.errors.confirmPassword ? styles.inputError : ''}`}
                   {...authForm.register('confirmPassword')}
                 />
-                <button type="button" className={styles.toggleBtn} onClick={() => setShowConfirm((v) => !v)} aria-label={showConfirm ? 'Hide' : 'Show'}>
-                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                <button type="button" className={styles.toggleBtn} onClick={() => setVisibility((v) => ({ ...v, confirm: !v.confirm }))} aria-label={visibility.confirm ? 'Hide' : 'Show'}>
+                  {visibility.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {authForm.formState.errors.confirmPassword && (

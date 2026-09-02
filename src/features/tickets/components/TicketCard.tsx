@@ -58,7 +58,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </div>
         <div className={styles.footerRight}>
           {ticket.slaResolutionDeadline && (
-            <SLACountdown deadline={ticket.slaResolutionDeadline} variant="pill" />
+            <SLACountdown deadline={ticket.slaResolutionDeadline} createdAt={ticket.createdAt} variant="pill" />
           )}
           <span className={styles.date}>{format(new Date(ticket.createdAt), 'MMM d')}</span>
         </div>

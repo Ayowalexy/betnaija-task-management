@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Building2, Bell, CreditCard, Clock,
+  Building2, Bell, CreditCard,
   Mail, MessageSquare, Phone,
   Upload, Eye, EyeOff, Save, Shield, Server, Send,
 } from 'lucide-react';
@@ -9,27 +10,70 @@ import { PageWrapper } from '@/components/layout/PageWrapper.js';
 import { Tabs, Button, Input } from '@/components/ui/index.js';
 import { useToast } from '@/hooks/useToast.js';
 import { settingsApi } from '@/api/settings.js';
-import type { OrgSettings } from '@/api/settings.js';
+import type { OrgSettings, SmtpProvider, SmtpEncryption } from '@/api/settings.js';
 import styles from './SettingsPage.module.css';
 
 const TABS = [
   { id: 'general',       label: 'General' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'payment',       label: 'Payment' },
-  { id: 'sla',           label: 'SLA Defaults' },
   { id: 'smtp',          label: 'SMTP' },
 ];
+const TAB_IDS = TABS.map((t) => t.id);
+const DEFAULT_TAB = TAB_IDS[0];
 
-type SmtpProvider = 'office365' | 'gmail' | 'custom';
-type SmtpEncryption = 'tls' | 'ssl' | 'none';
+interface GeneralForm {
+  orgName: string;
+  logoUrl: string | null;
+}
 
-const SMTP_PRESETS: Record<SmtpProvider, { host: string; port: string; encryption: SmtpEncryption }> = {
+interface NotifChannels {
+  email: boolean;
+  teams: boolean;
+  sms: boolean;
+  whatsapp: boolean;
+}
+
+interface PaymentForm {
+  paystackPublicKey: string;
+  paystackSecretKey: string;
+}
+
+interface SmtpForm {
+  provider: SmtpProvider;
+  host: string;
+  port: string;
+  encryption: SmtpEncryption;
+  username: string;
+  password: string;
+  senderName: string;
+  senderEmail: string;
+}
+
+const INITIAL_GENERAL: GeneralForm = { orgName: '', logoUrl: null };
+const INITIAL_NOTIFS: NotifChannels = { email: true, teams: false, sms: false, whatsapp: false };
+const INITIAL_PAYMENT: PaymentForm = { paystackPublicKey: '', paystackSecretKey: '' };
+const INITIAL_SMTP: SmtpForm = {
+  provider: 'office365', host: '', port: '', encryption: 'tls',
+  username: '', password: '', senderName: '', senderEmail: '',
+};
+
+interface SavingState {
+  general: boolean;
+  notifs: boolean;
+  payment: boolean;
+  smtp: boolean;
+  smtpTest: boolean;
+}
+const INITIAL_SAVING: SavingState = { general: false, notifs: false, payment: false, smtp: false, smtpTest: false };
+
+const SMTP_PRESETS: Record<Exclude<SmtpProvider, null>, { host: string; port: string; encryption: SmtpEncryption }> = {
   office365: { host: 'smtp.office365.com', port: '587', encryption: 'tls' },
   gmail:     { host: 'smtp.gmail.com',     port: '587', encryption: 'tls' },
   custom:    { host: '',                   port: '587', encryption: 'tls' },
 };
 
-const SMTP_PROVIDER_LABELS: Record<SmtpProvider, { name: string; sub: string }> = {
+const SMTP_PROVIDER_LABELS: Record<Exclude<SmtpProvider, null>, { name: string; sub: string }> = {
   office365: { name: 'Microsoft 365',     sub: 'smtp.office365.com' },
   gmail:     { name: 'Google Workspace',  sub: 'smtp.gmail.com'     },
   custom:    { name: 'Custom SMTP',       sub: 'Enter your own host' },
@@ -42,10 +86,11 @@ interface SectionCardProps {
   description: string;
   children: ReactElement;
   onSave: () => void;
+  saving?: boolean;
   saveLabel?: string;
 }
 
-function SectionCard({ icon, title, description, children, onSave, saveLabel = 'Save' }: SectionCardProps): ReactElement {
+function SectionCard({ icon, title, description, children, onSave, saving, saveLabel = 'Save' }: SectionCardProps): ReactElement {
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
@@ -57,7 +102,7 @@ function SectionCard({ icon, title, description, children, onSave, saveLabel = '
       </div>
       <div className={styles.cardBody}>{children}</div>
       <div className={styles.cardFooter}>
-        <Button leftIcon={<Save size={14} />} onClick={onSave}>{saveLabel}</Button>
+        <Button leftIcon={<Save size={14} />} onClick={onSave} loading={saving}>{saveLabel}</Button>
       </div>
     </div>
   );
@@ -97,16 +142,22 @@ function ToggleRow({ icon, label, description, checked, onChange }: ToggleRowPro
 }
 
 /* ── Masked input with eye ──────────────────────────────── */
-function MaskedInput({ label, placeholder }: { label: string; placeholder?: string }): ReactElement {
+interface MaskedInputProps {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function MaskedInput({ label, placeholder, value, onChange }: MaskedInputProps): ReactElement {
   const [show, setShow] = useState(false);
-  const [value, setValue] = useState('');
   return (
     <Input
       label={label}
       type={show ? 'text' : 'password'}
       placeholder={placeholder ?? '••••••••••••••••'}
       value={value}
-      onChange={(e) => setValue(e.target.value)}
+      onChange={(e) => onChange(e.target.value)}
       rightIcon={
         <button type="button" className={styles.eyeBtn} onClick={() => setShow((s) => !s)} aria-label={show ? 'Hide' : 'Show'}>
           {show ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -119,33 +170,57 @@ function MaskedInput({ label, placeholder }: { label: string; placeholder?: stri
 /* ── Page ───────────────────────────────────────────────── */
 export function SettingsPage(): ReactElement {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('general');
-  const [, setSettings] = useState<OrgSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const activeTab = rawTab && TAB_IDS.includes(rawTab) ? rawTab : DEFAULT_TAB;
 
-  // General tab state
-  const [orgName, setOrgName] = useState('');
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  function setActiveTab(tab: string): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    });
+  }
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<SavingState>(INITIAL_SAVING);
+
+  const [general, setGeneral] = useState<GeneralForm>(INITIAL_GENERAL);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // Notification tab state
-  const [notifyOnEscalate, setNotifyOnEscalate] = useState(true);
-  const [notifyOnBreach, setNotifyOnBreach] = useState(true);
+  const [notifChannels, setNotifChannels] = useState<NotifChannels>(INITIAL_NOTIFS);
 
-  // SLA tab state (ms -> hours for display)
-  const [slaResponseHours, setSlaResponseHours] = useState(4);
-  const [slaResolutionHours, setSlaResolutionHours] = useState(24);
+  const [payment, setPayment] = useState<PaymentForm>(INITIAL_PAYMENT);
+
+  const [smtp, setSmtp] = useState<SmtpForm>(INITIAL_SMTP);
+  const [smtpShowPassword, setSmtpShowPassword] = useState(false);
+  const [smtpTestEmail, setSmtpTestEmail] = useState('');
+
+  function updateSaving(patch: Partial<SavingState>): void {
+    setSaving((s) => ({ ...s, ...patch }));
+  }
+
+  function applySettings(data: OrgSettings): void {
+    setGeneral({ orgName: data.orgName, logoUrl: data.orgLogoUrl });
+    setNotifChannels({ ...data.notifChannels });
+    setPayment({
+      paystackPublicKey: data.paystackPublicKey ?? '',
+      paystackSecretKey: data.paystackSecretKey ?? '',
+    });
+    setSmtp({
+      provider: data.smtp.provider ?? 'office365',
+      host: data.smtp.host ?? '',
+      port: data.smtp.port ? String(data.smtp.port) : '',
+      encryption: data.smtp.encryption ?? 'tls',
+      username: data.smtp.username ?? '',
+      password: data.smtp.password ?? '',
+      senderName: data.smtp.senderName ?? '',
+      senderEmail: data.smtp.senderEmail ?? '',
+    });
+  }
 
   useEffect(() => {
-    settingsApi.get().then((data) => {
-      setSettings(data);
-      setOrgName(data.orgName);
-      setLogoUrl(data.logoUrl);
-      setNotifyOnEscalate(data.notifyOnEscalate);
-      setNotifyOnBreach(data.notifyOnBreach);
-      setSlaResponseHours(data.defaultSlaResponseMs / (1000 * 60 * 60));
-      setSlaResolutionHours(data.defaultSlaResolutionMs / (1000 * 60 * 60));
-    }).catch(() => {
+    settingsApi.get().then(applySettings).catch(() => {
       toast({ type: 'error', message: 'Failed to load settings' });
     }).finally(() => {
       setLoading(false);
@@ -154,20 +229,22 @@ export function SettingsPage(): ReactElement {
   }, []);
 
   async function handleSaveGeneral(): Promise<void> {
+    updateSaving({ general: true });
     try {
-      const updated = await settingsApi.update({ orgName });
-      setSettings(updated);
+      const updated = await settingsApi.update({ orgName: general.orgName });
+      applySettings(updated);
       toast({ type: 'success', message: 'General settings saved' });
     } catch {
       toast({ type: 'error', message: 'Failed to save settings' });
+    } finally {
+      updateSaving({ general: false });
     }
   }
 
   async function handleLogoUpload(file: File): Promise<void> {
     try {
-      const updated = await settingsApi.uploadLogo(file);
-      setSettings(updated);
-      setLogoUrl(updated.logoUrl);
+      const { logoUrl: url } = await settingsApi.uploadLogo(file);
+      setGeneral((g) => ({ ...g, logoUrl: url }));
       toast({ type: 'success', message: 'Logo updated' });
     } catch {
       toast({ type: 'error', message: 'Failed to upload logo' });
@@ -175,55 +252,67 @@ export function SettingsPage(): ReactElement {
   }
 
   async function handleSaveNotifications(): Promise<void> {
+    updateSaving({ notifs: true });
     try {
-      const updated = await settingsApi.update({ notifyOnEscalate, notifyOnBreach });
-      setSettings(updated);
+      const updated = await settingsApi.update({ notifChannels });
+      applySettings(updated);
       toast({ type: 'success', message: 'Notification preferences saved' });
     } catch {
       toast({ type: 'error', message: 'Failed to save notification settings' });
+    } finally {
+      updateSaving({ notifs: false });
     }
   }
 
-  async function handleSaveSla(): Promise<void> {
+  async function handleSavePayment(): Promise<void> {
+    updateSaving({ payment: true });
     try {
-      const updated = await settingsApi.update({
-        defaultSlaResponseMs: slaResponseHours * 60 * 60 * 1000,
-        defaultSlaResolutionMs: slaResolutionHours * 60 * 60 * 1000,
-      });
-      setSettings(updated);
-      toast({ type: 'success', message: 'SLA defaults saved' });
+      const updated = await settingsApi.update(payment);
+      applySettings(updated);
+      toast({ type: 'success', message: 'Payment credentials saved' });
     } catch {
-      toast({ type: 'error', message: 'Failed to save SLA settings' });
+      toast({ type: 'error', message: 'Failed to save payment credentials' });
+    } finally {
+      updateSaving({ payment: false });
     }
   }
 
-  // ── SMTP state ───────────────────────────────────────────────────────────
-  const [smtpProvider, setSmtpProvider] = useState<SmtpProvider>('office365');
-  const [smtpHost, setSmtpHost] = useState(SMTP_PRESETS.office365.host);
-  const [smtpPort, setSmtpPort] = useState(SMTP_PRESETS.office365.port);
-  const [smtpEncryption, setSmtpEncryption] = useState<SmtpEncryption>(SMTP_PRESETS.office365.encryption);
-  const [smtpUsername, setSmtpUsername] = useState('');
-  const [smtpPassword, setSmtpPassword] = useState('');
-  const [smtpShowPassword, setSmtpShowPassword] = useState(false);
-  const [smtpSenderName, setSmtpSenderName] = useState('');
-  const [smtpSenderEmail, setSmtpSenderEmail] = useState('');
-  const [smtpTestEmail, setSmtpTestEmail] = useState('');
-  const [smtpTesting, setSmtpTesting] = useState(false);
+  function selectSmtpProvider(provider: Exclude<SmtpProvider, null>): void {
+    setSmtp((s) => ({ ...s, provider, ...SMTP_PRESETS[provider] }));
+  }
 
-  function selectSmtpProvider(provider: SmtpProvider): void {
-    setSmtpProvider(provider);
-    const preset = SMTP_PRESETS[provider];
-    setSmtpHost(preset.host);
-    setSmtpPort(preset.port);
-    setSmtpEncryption(preset.encryption);
+  function currentSmtpConfig() {
+    return {
+      ...smtp,
+      port: smtp.port ? Number(smtp.port) : null,
+    };
+  }
+
+  async function handleSaveSmtp(): Promise<void> {
+    updateSaving({ smtp: true });
+    try {
+      const updated = await settingsApi.update({ smtp: currentSmtpConfig() });
+      applySettings(updated);
+      toast({ type: 'success', message: 'SMTP settings saved' });
+    } catch {
+      toast({ type: 'error', message: 'Failed to save SMTP settings' });
+    } finally {
+      updateSaving({ smtp: false });
+    }
   }
 
   async function sendTestEmail(): Promise<void> {
     if (!smtpTestEmail) return;
-    setSmtpTesting(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setSmtpTesting(false);
-    toast({ type: 'success', message: `Test email sent to ${smtpTestEmail}` });
+    updateSaving({ smtpTest: true });
+    try {
+      await settingsApi.testSmtp(smtpTestEmail, currentSmtpConfig());
+      toast({ type: 'success', message: `Test email sent to ${smtpTestEmail}` });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send test email';
+      toast({ type: 'error', message });
+    } finally {
+      updateSaving({ smtpTest: false });
+    }
   }
 
   if (loading) {
@@ -248,16 +337,17 @@ export function SettingsPage(): ReactElement {
           title="Organization Settings"
           description="Manage your organization's name and branding"
           onSave={handleSaveGeneral}
+          saving={saving.general}
         >
           <>
             <div className={styles.field}>
-              <Input label="Organization Name" placeholder="FlowDesk Corp" value={orgName} onChange={(e) => setOrgName(e.target.value)} />
+              <Input label="Organization Name" placeholder="Bet9ja" value={general.orgName} onChange={(e) => setGeneral((g) => ({ ...g, orgName: e.target.value }))} />
             </div>
             <div>
               <span className={styles.fieldLabel}>Organization Logo</span>
-              {logoUrl && (
+              {general.logoUrl && (
                 <div style={{ marginBottom: 8 }}>
-                  <img src={logoUrl} alt="Current logo" style={{ maxHeight: 48, borderRadius: 4 }} />
+                  <img src={general.logoUrl} alt="Current logo" style={{ maxHeight: 48, borderRadius: 4 }} />
                 </div>
               )}
               <div
@@ -290,13 +380,15 @@ export function SettingsPage(): ReactElement {
         <SectionCard
           icon={<Bell size={20} />}
           title="Notification Channels"
-          description="Choose how your team receives platform notifications"
+          description="Choose which channels are available for platform notifications org-wide"
           onSave={handleSaveNotifications}
+          saving={saving.notifs}
         >
           <div className={styles.toggleGroup}>
-            <ToggleRow icon={<Mail size={16} />} label="Email" description="Receive notifications via email" checked={true} onChange={() => {}} />
-            <ToggleRow icon={<MessageSquare size={16} />} label="Notify on Escalate" description="Send alerts when tickets are escalated" checked={notifyOnEscalate} onChange={setNotifyOnEscalate} />
-            <ToggleRow icon={<Phone size={16} />} label="Notify on SLA Breach" description="Push notifications on SLA breach" checked={notifyOnBreach} onChange={setNotifyOnBreach} />
+            <ToggleRow icon={<Mail size={16} />} label="Email" description="Send notifications via SMTP (configured in the SMTP tab)" checked={notifChannels.email} onChange={(v) => setNotifChannels((n) => ({ ...n, email: v }))} />
+            <ToggleRow icon={<MessageSquare size={16} />} label="Microsoft Teams" description="Send alerts to department Teams webhooks" checked={notifChannels.teams} onChange={(v) => setNotifChannels((n) => ({ ...n, teams: v }))} />
+            <ToggleRow icon={<Phone size={16} />} label="SMS" description="Send SMS notifications for critical events" checked={notifChannels.sms} onChange={(v) => setNotifChannels((n) => ({ ...n, sms: v }))} />
+            <ToggleRow icon={<Phone size={16} />} label="WhatsApp" description="Push notifications via WhatsApp" checked={notifChannels.whatsapp} onChange={(v) => setNotifChannels((n) => ({ ...n, whatsapp: v }))} />
           </div>
         </SectionCard>
       )}
@@ -306,7 +398,8 @@ export function SettingsPage(): ReactElement {
           icon={<CreditCard size={20} />}
           title="Payment Configuration"
           description="Connect your Paystack account to enable in-platform payments"
-          onSave={() => toast({ type: 'success', message: 'Credentials saved' })}
+          onSave={handleSavePayment}
+          saving={saving.payment}
           saveLabel="Save Credentials"
         >
           <>
@@ -315,52 +408,13 @@ export function SettingsPage(): ReactElement {
               Keep your API keys secure. Never share them publicly.
             </div>
             <div className={styles.field}>
-              <MaskedInput label="Paystack Public Key" placeholder="pk_live_••••••••••" />
+              <MaskedInput label="Paystack Public Key" placeholder="pk_live_••••••••••" value={payment.paystackPublicKey} onChange={(v) => setPayment((p) => ({ ...p, paystackPublicKey: v }))} />
             </div>
             <div className={styles.field}>
-              <MaskedInput label="Paystack Secret Key" placeholder="sk_live_••••••••••" />
+              <MaskedInput label="Paystack Secret Key" placeholder="sk_live_••••••••••" value={payment.paystackSecretKey} onChange={(v) => setPayment((p) => ({ ...p, paystackSecretKey: v }))} />
             </div>
             <p className={styles.payHint}>Test mode keys start with <code>pk_test_</code> and <code>sk_test_</code></p>
           </>
-        </SectionCard>
-      )}
-
-      {activeTab === 'sla' && (
-        <SectionCard
-          icon={<Clock size={20} />}
-          title="SLA Default Configuration"
-          description="Set default response and resolution windows"
-          onSave={handleSaveSla}
-          saveLabel="Save All"
-        >
-          <div className={styles.slaTable}>
-            <div className={styles.slaHeader}>
-              <span>Setting</span>
-              <span>Hours</span>
-            </div>
-            <div className={styles.slaRow}>
-              <span className={styles.deptName}>Default Response Time</span>
-              <Input
-                type="number"
-                step="0.5"
-                min="0.5"
-                value={slaResponseHours}
-                onChange={(e) => setSlaResponseHours(parseFloat(e.target.value) || 0)}
-                wrapperClassName={styles.slaInput}
-              />
-            </div>
-            <div className={[styles.slaRow, styles.slaRowAlt].join(' ')}>
-              <span className={styles.deptName}>Default Resolution Time</span>
-              <Input
-                type="number"
-                step="1"
-                min="1"
-                value={slaResolutionHours}
-                onChange={(e) => setSlaResolutionHours(parseFloat(e.target.value) || 0)}
-                wrapperClassName={styles.slaInput}
-              />
-            </div>
-          </div>
         </SectionCard>
       )}
 
@@ -369,7 +423,8 @@ export function SettingsPage(): ReactElement {
           icon={<Server size={20} />}
           title="SMTP Configuration"
           description="Configure the outgoing mail server used for all platform notifications"
-          onSave={() => toast({ type: 'success', message: 'SMTP settings saved' })}
+          onSave={handleSaveSmtp}
+          saving={saving.smtp}
           saveLabel="Save SMTP Settings"
         >
           <>
@@ -377,11 +432,11 @@ export function SettingsPage(): ReactElement {
             <div>
               <span className={styles.fieldLabel}>Mail Provider</span>
               <div className={styles.smtpProviders}>
-                {(Object.keys(SMTP_PROVIDER_LABELS) as SmtpProvider[]).map((key) => (
+                {(Object.keys(SMTP_PROVIDER_LABELS) as Exclude<SmtpProvider, null>[]).map((key) => (
                   <button
                     key={key}
                     type="button"
-                    className={[styles.smtpProvider, smtpProvider === key ? styles.smtpProviderActive : ''].filter(Boolean).join(' ')}
+                    className={[styles.smtpProvider, smtp.provider === key ? styles.smtpProviderActive : ''].filter(Boolean).join(' ')}
                     onClick={() => selectSmtpProvider(key)}
                   >
                     <span className={styles.smtpProviderName}>{SMTP_PROVIDER_LABELS[key].name}</span>
@@ -396,15 +451,15 @@ export function SettingsPage(): ReactElement {
               <Input
                 label="SMTP Host"
                 placeholder="smtp.example.com"
-                value={smtpHost}
-                onChange={(e) => setSmtpHost(e.target.value)}
+                value={smtp.host}
+                onChange={(e) => setSmtp((s) => ({ ...s, host: e.target.value }))}
               />
               <Input
                 label="Port"
                 type="number"
                 placeholder="587"
-                value={smtpPort}
-                onChange={(e) => setSmtpPort(e.target.value)}
+                value={smtp.port}
+                onChange={(e) => setSmtp((s) => ({ ...s, port: e.target.value }))}
                 wrapperClassName={styles.smtpPortField}
               />
             </div>
@@ -414,8 +469,8 @@ export function SettingsPage(): ReactElement {
               <span className={styles.fieldLabel}>Encryption</span>
               <select
                 className={styles.smtpSelect}
-                value={smtpEncryption}
-                onChange={(e) => setSmtpEncryption(e.target.value as SmtpEncryption)}
+                value={smtp.encryption}
+                onChange={(e) => setSmtp((s) => ({ ...s, encryption: e.target.value as SmtpEncryption }))}
               >
                 <option value="tls">STARTTLS (recommended)</option>
                 <option value="ssl">SSL / TLS</option>
@@ -429,8 +484,8 @@ export function SettingsPage(): ReactElement {
                 label="Username / Account Email"
                 type="email"
                 placeholder="notifications@bet9ja.com"
-                value={smtpUsername}
-                onChange={(e) => setSmtpUsername(e.target.value)}
+                value={smtp.username}
+                onChange={(e) => setSmtp((s) => ({ ...s, username: e.target.value }))}
               />
             </div>
             <div className={styles.field}>
@@ -438,8 +493,8 @@ export function SettingsPage(): ReactElement {
                 label="Password / App Password"
                 type={smtpShowPassword ? 'text' : 'password'}
                 placeholder="••••••••••••••••"
-                value={smtpPassword}
-                onChange={(e) => setSmtpPassword(e.target.value)}
+                value={smtp.password}
+                onChange={(e) => setSmtp((s) => ({ ...s, password: e.target.value }))}
                 rightIcon={
                   <button type="button" className={styles.eyeBtn} onClick={() => setSmtpShowPassword((s) => !s)} aria-label={smtpShowPassword ? 'Hide' : 'Show'}>
                     {smtpShowPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -457,15 +512,15 @@ export function SettingsPage(): ReactElement {
               <Input
                 label="Sender Name"
                 placeholder="Bet9ja Support"
-                value={smtpSenderName}
-                onChange={(e) => setSmtpSenderName(e.target.value)}
+                value={smtp.senderName}
+                onChange={(e) => setSmtp((s) => ({ ...s, senderName: e.target.value }))}
               />
               <Input
                 label="Sender Email"
                 type="email"
                 placeholder="no-reply@bet9ja.com"
-                value={smtpSenderEmail}
-                onChange={(e) => setSmtpSenderEmail(e.target.value)}
+                value={smtp.senderEmail}
+                onChange={(e) => setSmtp((s) => ({ ...s, senderEmail: e.target.value }))}
               />
             </div>
 
@@ -486,9 +541,9 @@ export function SettingsPage(): ReactElement {
                 variant="outline"
                 leftIcon={<Send size={14} />}
                 onClick={sendTestEmail}
-                disabled={smtpTesting || !smtpTestEmail}
+                disabled={saving.smtpTest || !smtpTestEmail}
               >
-                {smtpTesting ? 'Sending…' : 'Send Test'}
+                {saving.smtpTest ? 'Sending…' : 'Send Test'}
               </Button>
             </div>
           </>

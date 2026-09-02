@@ -27,6 +27,9 @@ interface TicketListProps {
   showDepartmentFilter?: boolean;
   showDepartmentColumn?: boolean;
   showAssigneeFilter?: boolean;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export function TicketList({
@@ -35,6 +38,9 @@ export function TicketList({
   total,
   loading = false,
   error = null,
+  page,
+  pageSize,
+  onPageChange,
   showDepartmentFilter = true,
   showDepartmentColumn = true,
   showAssigneeFilter = true,
@@ -118,7 +124,7 @@ export function TicketList({
       width: '110px',
       render: (t) =>
         t.slaResolutionDeadline ? (
-          <SLACountdown deadline={t.slaResolutionDeadline} variant="pill" />
+          <SLACountdown deadline={t.slaResolutionDeadline} createdAt={t.createdAt} variant="pill" />
         ) : null,
     },
     {
@@ -165,7 +171,12 @@ export function TicketList({
               keyExtractor={(t) => t.id}
               onRowClick={(t) => navigate(`/tickets/${t.id}`)}
               loading={loading}
-              pageSize={25}
+              pageSize={pageSize ?? 25}
+              serverPagination={
+                page !== undefined && pageSize !== undefined && onPageChange && total !== undefined
+                  ? { page, pageSize, totalItems: total, onPageChange }
+                  : undefined
+              }
               stickyHeader
               emptyState={
                 <EmptyState

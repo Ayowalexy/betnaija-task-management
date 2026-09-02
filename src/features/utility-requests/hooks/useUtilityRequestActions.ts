@@ -1,53 +1,54 @@
-import { useUtilityRequestStore } from '@/store/utilityRequestStore.js';
-import { useAuthStore } from '@/store/authStore.js';
+import { utilityRequestsApi } from '@/api/utility-requests.js';
 import { useToast } from '@/hooks/useToast.js';
-import type { UtilityRequestLogEntry } from '@/types/index.js';
 
 interface UseUtilityRequestActionsReturn {
-  approveRequest: (requestId: string) => void;
-  rejectRequest: (requestId: string, reason: string) => void;
-  cancelRequest: (requestId: string) => void;
-  completeRequest: (requestId: string) => void;
+  approveRequest: (requestId: string) => Promise<void>;
+  rejectRequest: (requestId: string, reason: string) => Promise<void>;
+  cancelRequest: (requestId: string) => Promise<void>;
+  completeRequest: (requestId: string) => Promise<void>;
 }
 
-export function useUtilityRequestActions(): UseUtilityRequestActionsReturn {
-  const updateRequest = useUtilityRequestStore((s) => s.updateRequest);
-  const addLogEntry = useUtilityRequestStore((s) => s.addLogEntry);
-  const currentUser = useAuthStore((s) => s.currentUser);
+export function useUtilityRequestActions(onRefresh: () => void): UseUtilityRequestActionsReturn {
   const { toast } = useToast();
 
-  function pushLog(requestId: string, entry: Omit<UtilityRequestLogEntry, 'id' | 'timestamp' | 'actorId'>): void {
-    if (!currentUser) return;
-    addLogEntry(requestId, {
-      id: `url-${requestId}-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      actorId: currentUser.id,
-      ...entry,
-    });
+  async function approveRequest(requestId: string): Promise<void> {
+    try {
+      await utilityRequestsApi.approve(requestId);
+      toast({ type: 'success', message: 'Request approved.' });
+      onRefresh();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to approve request.' });
+    }
   }
 
-  function approveRequest(requestId: string): void {
-    updateRequest(requestId, { status: 'approved' });
-    pushLog(requestId, { action: 'approved', note: null });
-    toast({ type: 'success', message: 'Request approved.' });
+  async function rejectRequest(requestId: string, reason: string): Promise<void> {
+    try {
+      await utilityRequestsApi.reject(requestId, reason);
+      toast({ type: 'success', message: 'Request rejected.' });
+      onRefresh();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to reject request.' });
+    }
   }
 
-  function rejectRequest(requestId: string, reason: string): void {
-    updateRequest(requestId, { status: 'rejected', rejectionReason: reason });
-    pushLog(requestId, { action: 'rejected', note: reason });
-    toast({ type: 'success', message: 'Request rejected.' });
+  async function cancelRequest(requestId: string): Promise<void> {
+    try {
+      await utilityRequestsApi.cancel(requestId);
+      toast({ type: 'success', message: 'Request cancelled.' });
+      onRefresh();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to cancel request.' });
+    }
   }
 
-  function cancelRequest(requestId: string): void {
-    updateRequest(requestId, { status: 'cancelled' });
-    pushLog(requestId, { action: 'cancelled', note: null });
-    toast({ type: 'success', message: 'Request cancelled.' });
-  }
-
-  function completeRequest(requestId: string): void {
-    updateRequest(requestId, { status: 'completed' });
-    pushLog(requestId, { action: 'completed', note: null });
-    toast({ type: 'success', message: 'Request marked as completed.' });
+  async function completeRequest(requestId: string): Promise<void> {
+    try {
+      await utilityRequestsApi.complete(requestId);
+      toast({ type: 'success', message: 'Request marked as completed.' });
+      onRefresh();
+    } catch (err) {
+      toast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to mark request completed.' });
+    }
   }
 
   return { approveRequest, rejectRequest, cancelRequest, completeRequest };

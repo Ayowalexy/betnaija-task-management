@@ -1,6 +1,13 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/apiClient';
-import type { Department } from '../types/index';
+import type { Department, RequestType, TicketPriority } from '../types/index';
 import type { PaginatedResponse } from './tickets';
+
+export interface CreateRequestTypePayload {
+  name: string;
+  description: string;
+  priority: TicketPriority;
+  sla: { responseTimeMs: number; resolutionTimeMs: number };
+}
 
 export interface CreateDepartmentPayload {
   name: string;
@@ -10,6 +17,8 @@ export interface CreateDepartmentPayload {
   routing: 'roster_based' | 'all_notify';
   sla: { responseTimeMs: number; resolutionTimeMs: number };
   teamsWebhook?: string;
+  requestTypes?: CreateRequestTypePayload[]; // create only — use the request-type endpoints below to edit after creation
+  utilityIds?: string[];
 }
 
 export const departmentsApi = {
@@ -25,7 +34,7 @@ export const departmentsApi = {
     return apiPost<Department>('/departments', payload);
   },
 
-  update: async (id: string, payload: Partial<CreateDepartmentPayload>): Promise<Department> => {
+  update: async (id: string, payload: Partial<Omit<CreateDepartmentPayload, 'requestTypes'>>): Promise<Department> => {
     return apiPatch<Department>(`/departments/${id}`, payload);
   },
 
@@ -39,5 +48,17 @@ export const departmentsApi = {
 
   removeMember: async (departmentId: string, userId: string): Promise<void> => {
     await apiDelete(`/departments/${departmentId}/members/${userId}`);
+  },
+
+  createRequestType: async (departmentId: string, payload: CreateRequestTypePayload): Promise<RequestType> => {
+    return apiPost<RequestType>(`/departments/${departmentId}/request-types`, payload);
+  },
+
+  updateRequestType: async (departmentId: string, requestTypeId: string, payload: Partial<CreateRequestTypePayload>): Promise<RequestType> => {
+    return apiPatch<RequestType>(`/departments/${departmentId}/request-types/${requestTypeId}`, payload);
+  },
+
+  removeRequestType: async (departmentId: string, requestTypeId: string): Promise<void> => {
+    await apiDelete(`/departments/${departmentId}/request-types/${requestTypeId}`);
   },
 };

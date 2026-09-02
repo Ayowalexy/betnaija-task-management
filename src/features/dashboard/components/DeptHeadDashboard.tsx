@@ -20,13 +20,12 @@ export function DeptHeadDashboard() {
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
   const todayStr = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     Promise.all([
       ticketsApi.list({ page: 1, limit: 100, ...(currentUser?.departmentId ? { departmentIds: [currentUser.departmentId] } : {}) }),
-      rosterApi.list({ month: currentMonth }),
+      rosterApi.list(), // defaults to the current calendar month server-side
     ]).then(([ticketsRes, shiftsRes]) => {
       setDeptTickets(ticketsRes.data);
       setTodayShifts(shiftsRes.data.filter((s) => s.departmentId === deptId && s.date === todayStr));
@@ -99,12 +98,13 @@ export function DeptHeadDashboard() {
               <p className={styles.noOnDuty}>No shifts scheduled today</p>
             ) : (
               todayShifts.map((shift) => {
-                const initials = shift.userId.slice(0, 2).toUpperCase();
+                const displayName = shift.userName ?? shift.userId;
+                const initials = shift.userInitials ?? displayName.slice(0, 2).toUpperCase();
                 return (
                   <div key={shift.id} className={styles.onDutyUser}>
-                    <Avatar initials={initials} color="var(--color-primary)" size="sm" />
+                    <Avatar initials={initials} color={shift.userColor ?? 'var(--color-primary)'} size="sm" />
                     <div>
-                      <div className={styles.onDutyName}>{shift.userId}</div>
+                      <div className={styles.onDutyName}>{displayName}</div>
                       <div className={styles.onDutyTime}>{shift.startTime} – {shift.endTime}</div>
                     </div>
                   </div>

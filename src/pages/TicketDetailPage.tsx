@@ -14,11 +14,14 @@ export function TicketDetailPage(): ReactElement {
 
   const fetchTicket = useCallback(() => {
     if (!id) return;
-    setLoading(true);
+    // Only show the full-page loader on the very first load — later refreshes (status
+    // changes, etc.) update in place without unmounting the page.
+    setLoading((prev) => (ticket ? prev : true));
     setError(null);
     ticketsApi.get(id)
       .then((t) => { setTicket(t); setLoading(false); })
       .catch(() => { setError('Failed to load ticket.'); setLoading(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {

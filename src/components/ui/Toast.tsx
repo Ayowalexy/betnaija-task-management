@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 import type { Toast } from '@/types/index.js';
 import { useUIStore } from '@/store/uiStore.js';
@@ -72,11 +73,14 @@ export function ToastContainer() {
   // Show at most MAX_VISIBLE, newest on top (rendered last = visually on top)
   const visible = toasts.slice(-MAX_VISIBLE);
 
-  return (
+  // Portaled to document.body (outside #root's stacking context, which the modal
+  // backdrop also escapes into) so toasts always paint above an open modal.
+  return ReactDOM.createPortal(
     <div className={styles.container} aria-label="Notifications" role="region">
       {visible.map((t) => (
         <ToastItem key={t.id} toast={t} onRemove={removeToast} />
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }

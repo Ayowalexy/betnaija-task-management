@@ -15,7 +15,8 @@ import { EmptyState } from '@/components/shared/EmptyState.js';
 import { useToast } from '@/hooks/useToast.js';
 import { departmentsApi } from '@/api/departments.js';
 import { usersApi } from '@/api/users.js';
-import { useUtilityStore } from '@/store/utilityStore.js';
+import { utilitiesApi } from '@/api/utilities.js';
+import type { Utility, Department } from '@/types/index.js';
 import { createDepartmentSchema } from '../schemas.js';
 import type { CreateDepartmentFormData } from '../schemas.js';
 import styles from './CreateDepartmentModal.module.css';
@@ -65,31 +66,47 @@ const STEP_FIELDS: (keyof CreateDepartmentFormData)[][] = [
 
 const LAST_STEP = STEPS.length - 1;
 
+interface LookupData {
+  activeUtilities: Utility[];
+  departments: Department[];
+  deptHeadOptions: { value: string; label: string }[];
+}
+const INITIAL_LOOKUPS: LookupData = { activeUtilities: [], departments: [], deptHeadOptions: [] };
+
+interface WizardState {
+  currentStep: number;
+  maxStepReached: number;
+}
+const INITIAL_WIZARD: WizardState = { currentStep: 0, maxStepReached: 0 };
+
 export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepartmentModalProps): ReactElement {
   const { toast } = useToast();
-  const utilities = useUtilityStore((s) => s.utilities);
-  const activeUtilities = utilities.filter((u) => u.status === 'active');
+  const [lookups, setLookups] = useState<LookupData>(INITIAL_LOOKUPS);
+  const { activeUtilities, departments, deptHeadOptions } = lookups;
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [maxStepReached, setMaxStepReached] = useState(0);
-  const [deptHeadOptions, setDeptHeadOptions] = useState<{ value: string; label: string }[]>([]);
+  const [wizard, setWizard] = useState<WizardState>(INITIAL_WIZARD);
+  const { currentStep, maxStepReached } = wizard;
 
   useEffect(() => {
     if (!isOpen) return;
     void usersApi.list({ role: 'dept_head', limit: 200 }).then((res) => {
-      setDeptHeadOptions(res.data.map((u) => ({ value: u.id, label: u.name })));
+      setLookups((l) => ({ ...l, deptHeadOptions: res.data.map((u) => ({ value: u.id, label: u.name })) }));
     });
     // Also fetch root_admins separately and merge
     void usersApi.list({ role: 'root_admin', limit: 200 }).then((res) => {
-      setDeptHeadOptions((prev) => {
-        const existingIds = new Set(prev.map((o) => o.value));
+      setLookups((l) => {
+        const existingIds = new Set(l.deptHeadOptions.map((o) => o.value));
         const extra = res.data
           .filter((u) => !existingIds.has(u.id))
           .map((u) => ({ value: u.id, label: u.name }));
-        return [...prev, ...extra];
+        return { ...l, deptHeadOptions: [...l.deptHeadOptions, ...extra] };
       });
     });
+    void utilitiesApi.list({ status: 'active' }).then((res) => setLookups((l) => ({ ...l, activeUtilities: res.data })));
+    void departmentsApi.list({ limit: 500 }).then((res) => setLookups((l) => ({ ...l, departments: res.data })));
   }, [isOpen]);
+
+  const departmentNameById = new Map(departments.map((d) => [d.id, d.name]));
 
   const {
     register,
@@ -142,8 +159,7 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
   }
 
   function resetWizard(): void {
-    setCurrentStep(0);
-    setMaxStepReached(0);
+    setWizard(INITIAL_WIZARD);
   }
 
   function handleClose(): void {
@@ -156,16 +172,15 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
     const valid = await trigger(STEP_FIELDS[currentStep]);
     if (!valid) return;
     const next = Math.min(currentStep + 1, LAST_STEP);
-    setCurrentStep(next);
-    setMaxStepReached((prev) => Math.max(prev, next));
+    setWizard((w) => ({ currentStep: next, maxStepReached: Math.max(w.maxStepReached, next) }));
   }
 
   function handleBack(): void {
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
+    setWizard((w) => ({ ...w, currentStep: Math.max(w.currentStep - 1, 0) }));
   }
 
   function handleStepClick(index: number): void {
-    if (index <= maxStepReached) setCurrentStep(index);
+    if (index <= maxStepReached) setWizard((w) => ({ ...w, currentStep: index }));
   }
 
   async function onSubmit(data: CreateDepartmentFormData): Promise<void> {
@@ -181,6 +196,16 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
           resolutionTimeMs: data.resolutionTimeHours * 60 * 60 * 1000,
         },
         teamsWebhook: data.teamsWebhook || undefined,
+        requestTypes: data.requestTypes.map((rt) => ({
+          name: rt.name,
+          description: rt.description,
+          priority: rt.priority,
+          sla: {
+            responseTimeMs: rt.responseTimeHours * 60 * 60 * 1000,
+            resolutionTimeMs: rt.resolutionTimeHours * 60 * 60 * 1000,
+          },
+        })),
+        utilityIds: data.utilityIds,
       });
       toast({ type: 'success', message: 'Department created successfully' });
       reset();
@@ -409,14 +434,21 @@ export function CreateDepartmentModal({ isOpen, onClose, onSuccess }: CreateDepa
                   <div className={styles.utilityList}>
                     {activeUtilities.map((utility) => {
                       const checked = field.value.includes(utility.id);
+                      const assignedDeptId = utility.departmentIds[0];
+                      const assignedDeptName = assignedDeptId ? departmentNameById.get(assignedDeptId) : undefined;
+                      const isTaken = !!assignedDeptId;
+                      const description = isTaken
+                        ? `Already assigned to ${assignedDeptName ?? 'another department'}`
+                        : `${utility.options.length} option${utility.options.length === 1 ? '' : 's'} · ${
+                            utility.calendar.enabled ? 'Calendar synced' : 'No calendar integration'
+                          }`;
                       return (
                         <Checkbox
                           key={utility.id}
                           label={utility.name}
-                          description={`${utility.options.length} option${utility.options.length === 1 ? '' : 's'} · ${
-                            utility.calendar.enabled ? 'Calendar synced' : 'No calendar integration'
-                          }`}
+                          description={description}
                           checked={checked}
+                          disabled={isTaken}
                           onChange={(e) => {
                             field.onChange(
                               e.target.checked

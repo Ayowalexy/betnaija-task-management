@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/index.js';
 import { Textarea } from '@/components/ui/index.js';
 import { Select } from '@/components/ui/index.js';
 import type { UtilityRequest } from '@/types/index.js';
-import { getUtilityById } from '@/mocks/utilities.js';
+import { utilitiesApi } from '@/api/utilities.js';
 import { editUtilityRequestSchema } from '../schemas.js';
 import type { EditUtilityRequestFormData } from '../schemas.js';
 import { START_TIME_OPTIONS, DURATION_OPTIONS, computeEndTime } from '../timeOptions.js';
@@ -39,8 +39,14 @@ export function EditUtilityRequestModal({
   request,
   onSave,
 }: EditUtilityRequestModalProps): ReactElement {
-  const utility = getUtilityById(request.utilityId);
-  const optionChoices = (utility?.options ?? []).map((o) => ({ value: o.id, label: o.name }));
+  const [optionChoices, setOptionChoices] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void utilitiesApi.get(request.utilityId).then((utility) => {
+      setOptionChoices(utility.options.map((o) => ({ value: o.id, label: o.name })));
+    });
+  }, [isOpen, request.utilityId]);
 
   const {
     register,
@@ -56,7 +62,7 @@ export function EditUtilityRequestModal({
       date: request.date,
       startTime: request.startTime,
       endTime: request.endTime,
-      details: request.details,
+      details: request.details ?? '',
     },
   });
 

@@ -219,6 +219,10 @@ export function CreateTicketPage() {
   const attachments = watchedValues.attachments ?? [];
   const selectedDept = departments.find((d) => d.id === selectedDeptId) ?? null;
   const requestTypeOptions = useMemo(() => getRequestTypeOptions(selectedDept), [selectedDept]);
+  // Priority is auto-filled from the selected request type's configured priority — locked so
+  // it can't be overridden and drift from the SLA that type is meant to carry. "Other" custom
+  // requests have no request type to derive a priority from, so they stay editable.
+  const priorityLocked = Boolean(selectedRequestTypeId) && selectedRequestTypeId !== OTHER_REQUEST_TYPE_ID;
   const prevDeptIdRef = useRef(selectedDeptId);
 
   useEffect(() => {
@@ -259,6 +263,8 @@ export function CreateTicketPage() {
         description: data.description,
         priority: data.priority,
         departmentId: data.departmentId,
+        requestTypeId: data.requestTypeId,
+        customRequestTypeName: data.requestTypeId === OTHER_REQUEST_TYPE_ID ? data.customRequestTypeName : undefined,
         files: (data.attachments ?? []) as File[],
       });
       toast({ type: 'success', message: 'Ticket created successfully.' });
@@ -289,13 +295,6 @@ export function CreateTicketPage() {
 
             <div className={styles.twoCol}>
               <Controller
-                name="priority"
-                control={control}
-                render={({ field }) => (
-                  <Select label="Priority *" options={PRIORITY_OPTIONS} error={errors.priority?.message} {...field} />
-                )}
-              />
-              <Controller
                 name="departmentId"
                 control={control}
                 render={({ field }) => (
@@ -304,6 +303,19 @@ export function CreateTicketPage() {
                     options={departments.map((d) => ({ value: d.id, label: d.name }))}
                     placeholder="Select department…"
                     error={errors.departmentId?.message}
+                    {...field}
+                  />
+                )}
+              />
+              <Controller
+                name="priority"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    label={priorityLocked ? 'Priority * (auto-set by request type)' : 'Priority *'}
+                    options={PRIORITY_OPTIONS}
+                    error={errors.priority?.message}
+                    disabled={priorityLocked}
                     {...field}
                   />
                 )}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -22,6 +22,7 @@ import type { ReactNode, ReactElement } from 'react';
 import type { UserRole } from '@/types/index';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
+import { useChatStore } from '@/store/chatStore';
 import { useNotifications } from '@/hooks/useNotifications';
 import logo from '@/assets/logo.png';
 import styles from './Sidebar.module.css';
@@ -55,8 +56,7 @@ export function Sidebar(): ReactElement {
   const { sidebarCollapsed, sidebarMobileOpen, toggleSidebar, setSidebarMobileOpen } = useUIStore();
   const navigate = useNavigate();
   const { unreadCount: unreadNotifs } = useNotifications();
-  // Chat unread count — placeholder until Stream.io integration is complete
-  const [unreadChats] = useState(0);
+  const unreadChats = useChatStore((s) => s.totalUnread);
 
   const navItems = useMemo((): NavStructure => {
     const role = currentUser?.role;
@@ -81,6 +81,7 @@ export function Sidebar(): ReactElement {
         { label: 'Dept Tickets', to: '/tickets', icon: <Ticket size={18} /> },
         { label: 'Utility Request', to: '/utility-requests', icon: <ClipboardList size={18} /> },
         { label: 'Team Roster', to: '/roster', icon: <Calendar size={18} /> },
+        { label: 'Department Utilities', to: '/department-utilities', icon: <Wrench size={18} /> },
         { label: 'Team Members', to: '/team', icon: <Users size={18} /> },
         { label: 'Analytics', to: '/analytics', icon: <BarChart3 size={18} /> },
         { label: 'Chat', to: '/chat', icon: <MessageSquare size={18} />, badge: unreadChats },

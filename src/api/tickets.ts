@@ -13,7 +13,10 @@ export interface CreateTicketPayload {
   description: string;
   priority: string;
   departmentId: string;
+  requestTypeId: string; // a department request-type UUID, or the literal string "other"
+  customRequestTypeName?: string; // required (min 3 chars) when requestTypeId is "other"
   tags?: string[];
+  linkedTicketIds?: string[];
   files?: File[];
 }
 
@@ -29,12 +32,14 @@ export const ticketsApi = {
   ): Promise<PaginatedResponse<Ticket>> => {
     const params: Record<string, unknown> = { page: filters.page ?? 1, limit: filters.limit ?? 25 };
     if (filters.search) params.search = filters.search;
-    if (filters.statuses?.length) params.status = filters.statuses.join(',');
-    if (filters.priorities?.length) params.priority = filters.priorities.join(',');
+    if (filters.statuses?.length) params.statuses = filters.statuses.join(',');
+    if (filters.priorities?.length) params.priorities = filters.priorities.join(',');
     if (filters.departmentIds?.length) params.departmentIds = filters.departmentIds.join(',');
     if (filters.assigneeId) params.assigneeId = filters.assigneeId;
     if (filters.dateFrom) params.dateFrom = filters.dateFrom;
     if (filters.dateTo) params.dateTo = filters.dateTo;
+    if (filters.slaBreachedFrom) params.slaBreachedFrom = filters.slaBreachedFrom;
+    if (filters.slaBreachedTo) params.slaBreachedTo = filters.slaBreachedTo;
     return apiGet<PaginatedResponse<Ticket>>('/tickets', { params });
   },
 
@@ -48,13 +53,16 @@ export const ticketsApi = {
     form.append('description', payload.description);
     form.append('priority', payload.priority);
     form.append('departmentId', payload.departmentId);
+    form.append('requestTypeId', payload.requestTypeId);
+    if (payload.customRequestTypeName) form.append('customRequestTypeName', payload.customRequestTypeName);
     (payload.tags ?? []).forEach((tag, i) => form.append(`tags[${i}]`, tag));
+    (payload.linkedTicketIds ?? []).forEach((id, i) => form.append(`linkedTicketIds[${i}]`, id));
     (payload.files ?? []).forEach((f) => form.append('files[]', f));
     const res = await apiClient.post('/tickets', form, { headers: { 'Content-Type': undefined } });
     return unwrap<Ticket>(res.data);
   },
 
-  update: async (id: string, updates: { title?: string; description?: string; priority?: string; tags?: string[] }): Promise<Ticket> => {
+  update: async (id: string, updates: { title?: string; description?: string; priority?: string; tags?: string[]; linkedTicketIds?: string[] }): Promise<Ticket> => {
     return apiPatch<Ticket>(`/tickets/${id}`, updates);
   },
 
@@ -66,12 +74,12 @@ export const ticketsApi = {
     return apiPatch<Ticket>(`/tickets/${id}/transfer`, { toDepartmentId, note });
   },
 
-  escalate: async (id: string, reason: string): Promise<Ticket> => {
-    return apiPatch<Ticket>(`/tickets/${id}/escalate`, { reason });
+  escalate: async (id: string, note: string): Promise<Ticket> => {
+    return apiPatch<Ticket>(`/tickets/${id}/escalate`, { note });
   },
 
-  resolve: async (id: string, resolution: string): Promise<Ticket> => {
-    return apiPatch<Ticket>(`/tickets/${id}/resolve`, { resolution });
+  resolve: async (id: string, resolutionNote: string): Promise<Ticket> => {
+    return apiPatch<Ticket>(`/tickets/${id}/resolve`, { resolutionNote });
   },
 
   close: async (id: string): Promise<Ticket> => {
@@ -103,5 +111,16 @@ export const ticketsApi = {
 
   toggleReaction: async (ticketId: string, commentId: string, emoji: string) => {
     return apiPost(`/tickets/${ticketId}/comments/${commentId}/reactions`, { emoji });
+  },
+
+  // The live conversation itself now lives in Stream Chat (real-time delivery, reactions,
+  // attachments) — these two remain the only backend touchpoints for it: getting/creating
+  // access to the ticket's chat channel, and recording an activity-feed entry for it.
+  getChatAccess: async (ticketId: string): Promise<{ channelId: string }> => {
+    return apiGet<{ channelId: string }>(`/tickets/${ticketId}/chat-access`);
+  },
+
+  logChatEvent: async (ticketId: string, note: string): Promise<void> => {
+    await apiPost(`/tickets/${ticketId}/chat-log`, { note });
   },
 };

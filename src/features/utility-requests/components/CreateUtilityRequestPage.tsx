@@ -9,14 +9,12 @@ import { Select } from '@/components/ui/index.js';
 import { Button } from '@/components/ui/index.js';
 import { Modal } from '@/components/ui/index.js';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
-import { useUtilityRequestStore } from '@/store/utilityRequestStore.js';
-import { useUtilityStore } from '@/store/utilityStore.js';
-import { useAuthStore } from '@/store/authStore.js';
+import { utilitiesApi } from '@/api/utilities.js';
+import { departmentsApi } from '@/api/departments.js';
+import { utilityRequestsApi } from '@/api/utility-requests.js';
 import { useToast } from '@/hooks/useToast.js';
 import { useModal } from '@/hooks/useModal.js';
-import { getDeptById, getDepartmentsForUtility } from '@/mocks/departments.js';
-import { getUtilityById } from '@/mocks/utilities.js';
-import type { UtilityRequest } from '@/types/index.js';
+import type { Department, Utility } from '@/types/index.js';
 import { createUtilityRequestSchema } from '../schemas.js';
 import type { CreateUtilityRequestFormData } from '../schemas.js';
 import { START_TIME_OPTIONS, DURATION_OPTIONS, computeEndTime, formatTimeLabel } from '../timeOptions.js';
@@ -28,12 +26,12 @@ interface UtilityPreviewProps {
   onSubmit: () => void;
   data: Partial<CreateUtilityRequestFormData>;
   isSubmitting: boolean;
+  utility: Utility | null;
+  department: Department | null;
 }
 
-function UtilityRequestPreview({ isOpen, onClose, onSubmit, data, isSubmitting }: UtilityPreviewProps) {
-  const utility = data.utilityId ? getUtilityById(data.utilityId) : null;
+function UtilityRequestPreview({ isOpen, onClose, onSubmit, data, isSubmitting, utility, department }: UtilityPreviewProps) {
   const option = utility?.options.find((o) => o.id === data.utilityOptionId);
-  const dept = data.departmentId ? getDeptById(data.departmentId) : null;
 
   return (
     <Modal
@@ -63,7 +61,7 @@ function UtilityRequestPreview({ isOpen, onClose, onSubmit, data, isSubmitting }
         </div>
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Department</span>
-          <span className={styles.previewValue}>{dept?.name || '—'}</span>
+          <span className={styles.previewValue}>{department?.name || '—'}</span>
         </div>
         <div className={styles.previewRow}>
           <span className={styles.previewLabel}>Date</span>
@@ -86,17 +84,28 @@ function UtilityRequestPreview({ isOpen, onClose, onSubmit, data, isSubmitting }
 
 export function CreateUtilityRequestPage() {
   const navigate = useNavigate();
-  const addRequest = useUtilityRequestStore((s) => s.addRequest);
-  const utilities = useUtilityStore((s) => s.utilities);
-  const currentUser = useAuthStore((s) => s.currentUser);
   const { toast } = useToast();
   const previewModal = useModal();
 
+  const [utilities, setUtilities] = React.useState<Utility[]>([]);
+  const [departments, setDepartments] = React.useState<Department[]>([]);
+
+  React.useEffect(() => {
+    void utilitiesApi.list({ status: 'active' }).then((res) => setUtilities(res.data));
+    void departmentsApi.list({ limit: 100 }).then((res) => setDepartments(res.data));
+  }, []);
+
   const availableUtilities = React.useMemo(
-    () => utilities.filter((u) => u.status === 'active' && getDepartmentsForUtility(u.id).length > 0),
+    () => utilities.filter((u) => u.departmentIds.length > 0),
     [utilities],
   );
   const utilityOptions = availableUtilities.map((u) => ({ value: u.id, label: u.name }));
+
+  function getDepartmentsForUtility(utilityId: string): Department[] {
+    const utility = utilities.find((u) => u.id === utilityId);
+    if (!utility) return [];
+    return departments.filter((d) => utility.departmentIds.includes(d.id));
+  }
 
   const {
     register,
@@ -121,9 +130,16 @@ export function CreateUtilityRequestPage() {
 
   const watchedValues = useWatch({ control });
   const selectedUtilityId = watchedValues.utilityId ?? '';
-  const selectedUtility = selectedUtilityId ? getUtilityById(selectedUtilityId) : null;
+  const selectedUtility = utilities.find((u) => u.id === selectedUtilityId) ?? null;
   const departmentsForUtility = selectedUtilityId ? getDepartmentsForUtility(selectedUtilityId) : [];
-  const optionChoices = (selectedUtility?.options ?? []).map((o) => ({ value: o.id, label: o.name }));
+  const selectedDepartment = departments.find((d) => d.id === (watchedValues.departmentId ?? '')) ?? null;
+  const optionChoices = (selectedUtility?.options ?? []).map((o) => ({
+    value: o.id,
+    label: o.isAvailable
+      ? o.name
+      : `${o.name} — unavailable${o.unavailableUntil ? ` until ${new Date(o.unavailableUntil).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}`,
+    disabled: !o.isAvailable,
+  }));
   const startTime = watchedValues.startTime ?? '';
 
   const prevUtilityIdRef = React.useRef(selectedUtilityId);
@@ -134,6 +150,7 @@ export function CreateUtilityRequestPage() {
     setValue('utilityOptionId', '');
     const depts = selectedUtilityId ? getDepartmentsForUtility(selectedUtilityId) : [];
     setValue('departmentId', depts.length === 1 ? depts[0].id : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUtilityId, setValue]);
 
   React.useEffect(() => {
@@ -144,39 +161,24 @@ export function CreateUtilityRequestPage() {
     setValue('endTime', computeEndTime(startTime, Number(duration)), { shouldValidate: true });
   }, [startTime, duration, setValue]);
 
-  function onSubmit(data: CreateUtilityRequestFormData) {
-    if (!currentUser) return;
-    const id = `ur${Date.now().toString().slice(-6)}`;
-    const now = new Date().toISOString();
-    const newRequest: UtilityRequest = {
-      id,
-      utilityId: data.utilityId,
-      utilityOptionId: data.utilityOptionId,
-      departmentId: data.departmentId,
-      requestorId: currentUser.id,
-      date: data.date,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      details: data.details,
-      status: 'pending',
-      rejectionReason: null,
-      createdAt: now,
-      updatedAt: now,
-      comments: [],
-      log: [
-        {
-          id: `url-${id}-1`,
-          timestamp: now,
-          actorId: currentUser.id,
-          action: 'created',
-          note: null,
-        },
-      ],
-    };
-    addRequest(newRequest);
-    toast({ type: 'success', message: 'Utility request submitted.' });
-    previewModal.close();
-    navigate(`/utility-requests/${id}`);
+  async function onSubmit(data: CreateUtilityRequestFormData) {
+    try {
+      const created = await utilityRequestsApi.create({
+        utilityId: data.utilityId,
+        utilityOptionId: data.utilityOptionId,
+        departmentId: data.departmentId,
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        details: data.details,
+      });
+      toast({ type: 'success', message: 'Utility request submitted.' });
+      previewModal.close();
+      navigate(`/utility-requests/${created.id}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to submit utility request.';
+      toast({ type: 'error', message });
+    }
   }
 
   return (
@@ -307,6 +309,8 @@ export function CreateUtilityRequestPage() {
         onSubmit={handleSubmit(onSubmit)}
         data={watchedValues}
         isSubmitting={isSubmitting}
+        utility={selectedUtility}
+        department={selectedDepartment}
       />
     </PageWrapper>
   );

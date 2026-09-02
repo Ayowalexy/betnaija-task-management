@@ -1,22 +1,53 @@
+import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Wrench, ListChecks, CalendarCheck2 } from 'lucide-react';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
 import { Button } from '@/components/ui/index.js';
 import { EmptyState } from '@/components/shared/EmptyState.js';
-import { useUtilityStore } from '@/store/utilityStore.js';
+import { useToast } from '@/hooks/useToast.js';
 import { useModal } from '@/hooks/useModal.js';
+import { utilitiesApi } from '@/api/utilities.js';
+import type { Utility } from '@/types/index.js';
 import { UtilityCard } from './UtilityCard.js';
 import { CreateUtilityModal } from './CreateUtilityModal.js';
 import styles from './UtilitiesPage.module.css';
 
 export function UtilitiesPage(): ReactElement {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { isOpen, open, close } = useModal();
-  const utilities = useUtilityStore((s) => s.utilities);
+
+  const [utilities, setUtilities] = useState<Utility[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchUtilities = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await utilitiesApi.list();
+      setUtilities(result.data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load utilities';
+      setError(message);
+      toast({ type: 'error', message });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    void fetchUtilities();
+  }, [fetchUtilities]);
 
   function handleCardClick(id: string): void {
     void navigate(`/utilities/${id}`);
+  }
+
+  function handleCreateSuccess(): void {
+    close();
+    void fetchUtilities();
   }
 
   const totalUtilities = utilities.length;
@@ -70,7 +101,16 @@ export function UtilitiesPage(): ReactElement {
         </div>
 
         {/* Utility card grid */}
-        {utilities.length === 0 ? (
+        {loading ? (
+          <EmptyState icon={<Wrench size={40} />} title="Loading utilities…" description="Please wait while we fetch your utilities." />
+        ) : error ? (
+          <EmptyState
+            icon={<Wrench size={40} />}
+            title="Failed to load utilities"
+            description={error}
+            action={<Button onClick={() => void fetchUtilities()}>Retry</Button>}
+          />
+        ) : utilities.length === 0 ? (
           <EmptyState
             icon={<Wrench size={40} />}
             title="No utilities yet"
@@ -90,7 +130,7 @@ export function UtilitiesPage(): ReactElement {
         )}
       </div>
 
-      <CreateUtilityModal isOpen={isOpen} onClose={close} />
+      <CreateUtilityModal isOpen={isOpen} onClose={close} onSuccess={handleCreateSuccess} />
     </PageWrapper>
   );
 }

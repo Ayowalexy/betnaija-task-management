@@ -28,12 +28,19 @@ export type SLAStatus = 'safe' | 'warning' | 'critical' | 'breached';
 // Notification types
 export type NotificationType =
   | 'ticket_assigned'
+  | 'ticket_accepted'
+  | 'ticket_rejected'
+  | 'new_ticket'
   | 'sla_warning'
   | 'ticket_resolved'
   | 'new_comment'
   | 'payment_initiated'
   | 'ticket_escalated'
-  | 'ticket_transferred';
+  | 'ticket_transferred'
+  | 'utility_request_submitted'
+  | 'utility_request_approved'
+  | 'utility_request_rejected'
+  | 'utility_request_completed';
 
 // Payment status
 export type PaymentStatus = 'pending' | 'completed' | 'failed';
@@ -100,6 +107,9 @@ export type UtilityStatus = 'active' | 'inactive';
 export interface UtilityOption {
   id: string;
   name: string;
+  isAvailable: boolean;
+  unavailableUntil: string | null;
+  unavailableReason: string | null;
 }
 
 export interface UtilityCalendarIntegration {
@@ -116,6 +126,8 @@ export interface Utility {
   options: UtilityOption[];
   calendar: UtilityCalendarIntegration;
   status: UtilityStatus;
+  departmentIds: string[]; // departments that approve requests for this utility
+  departments?: { id: string; name: string }[]; // present on GET /utilities/:id
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
@@ -135,6 +147,7 @@ export interface UtilityRequestLogEntry {
   id: string;
   timestamp: string; // ISO
   actorId: string;
+  actorName?: string | null;
   action: UtilityRequestLogAction;
   note: string | null; // e.g. rejection reason or summary of what changed
 }
@@ -143,6 +156,9 @@ export interface UtilityRequestComment {
   id: string;
   requestId: string;
   authorId: string;
+  authorName?: string | null;
+  authorInitials?: string | null;
+  authorColor?: string | null;
   content: string;
   createdAt: string; // ISO
   updatedAt: string | null;
@@ -154,19 +170,25 @@ export interface UtilityRequestComment {
 export interface UtilityRequest {
   id: string;
   utilityId: string;
+  utilityName?: string | null; // present on list items
   utilityOptionId: string;
+  utilityOptionName?: string | null; // present on list items
   departmentId: string; // department responsible for approving this request
+  departmentName?: string | null; // present on list items
   requestorId: string;
+  requestorName?: string | null; // present on list items
   date: string; // ISO date YYYY-MM-DD
   startTime: string; // HH:MM
   endTime: string; // HH:MM
-  details: string;
+  // details/rejectionReason/updatedAt/comments/log are only present on the GET :id (detail) response —
+  // list items (GET /utility-requests) omit them.
+  details?: string;
   status: UtilityRequestStatus;
-  rejectionReason: string | null;
+  rejectionReason?: string | null;
   createdAt: string; // ISO
-  updatedAt: string; // ISO
-  comments: UtilityRequestComment[];
-  log: UtilityRequestLogEntry[];
+  updatedAt?: string; // ISO
+  comments?: UtilityRequestComment[];
+  log?: UtilityRequestLogEntry[];
 }
 
 export interface UtilityRequestFilters {
@@ -254,8 +276,11 @@ export interface Ticket {
 export interface TransferEntry {
   id: string;
   fromDeptId: string;
+  fromDeptName?: string | null;
   toDeptId: string;
+  toDeptName?: string | null;
   byUserId: string;
+  byUserName?: string | null;
   note: string;
   timestamp: string;
 }
@@ -263,7 +288,11 @@ export interface TransferEntry {
 export interface Shift {
   id: string;
   userId: string;
+  userName?: string | null;
+  userInitials?: string | null;
+  userColor?: string | null;
   departmentId: string;
+  departmentName?: string | null;
   date: string; // ISO date YYYY-MM-DD
   startTime: string; // HH:MM
   endTime: string; // HH:MM
@@ -295,6 +324,7 @@ export interface Notification {
   title: string;
   message: string;
   ticketId: string | null;
+  utilityRequestId?: string | null;
   createdAt: string; // ISO
   isRead: boolean;
 }
@@ -304,6 +334,7 @@ export interface AnalyticsSummary {
   resolvedThisMonth: number;
   slaComplianceRate: number;
   avgResolutionHours: number;
+  currentlyBreached: number;
 }
 
 export interface AnalyticsData {
@@ -356,11 +387,13 @@ export interface SLABreach {
 export interface Payment {
   id: string;
   ticketId: string;
+  ticketTitle?: string | null;
   amount: number;
   currency: string;
   status: PaymentStatus;
   method: PaymentMethod;
   initiatedBy: string; // user id
+  initiatedByName?: string | null;
   initiatedAt: string; // ISO
   completedAt: string | null;
   reference: string;

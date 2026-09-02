@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -49,27 +50,43 @@ export function AnalyticsPage(): ReactElement {
   const isDeptHead = currentUser?.role === 'dept_head';
   const deptId = isDeptHead ? (currentUser?.departmentId ?? undefined) : undefined;
 
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(EMPTY_ANALYTICS);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateFrom = searchParams.get('from') ?? '';
+  const dateTo = searchParams.get('to') ?? '';
+
+  function setDateFrom(value: string): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set('from', value);
+      else next.delete('from');
+      return next;
+    });
+  }
+
+  function setDateTo(value: string): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set('to', value);
+      else next.delete('to');
+      return next;
+    });
+  }
+
+  const [state, setState] = useState({ data: EMPTY_ANALYTICS, loading: true, error: null as string | null });
+  const { data: analyticsData, loading, error } = state;
   const contentRef = useRef<HTMLDivElement>(null);
 
   const loadAnalytics = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setState((s) => ({ ...s, loading: true, error: null }));
       const params: { dateFrom?: string; dateTo?: string; departmentId?: string } = {};
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
       if (deptId) params.departmentId = deptId;
       const data = await analyticsApi.get(params);
-      setAnalyticsData(data);
+      setState({ data, loading: false, error: null });
     } catch {
-      setError('Failed to load analytics data');
-    } finally {
-      setLoading(false);
+      setState((s) => ({ ...s, loading: false, error: 'Failed to load analytics data' }));
     }
   }, [dateFrom, dateTo, deptId]);
 

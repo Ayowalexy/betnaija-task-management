@@ -11,7 +11,7 @@ export interface CreateShiftPayload {
 }
 
 export const rosterApi = {
-  list: async (params?: { departmentId?: string; month?: string; userId?: string }): Promise<PaginatedResponse<Shift>> => {
+  list: async (params?: { departmentId?: string; dateFrom?: string; dateTo?: string; userId?: string }): Promise<PaginatedResponse<Shift>> => {
     return apiGet<PaginatedResponse<Shift>>('/roster', { params });
   },
 

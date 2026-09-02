@@ -22,10 +22,7 @@ export function useRoster(departmentId: string): UseRosterReturn {
   const [weekOffset, setWeekOffset] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  const baseDate = useMemo(() => {
-    const base = new Date(2026, 5, 26); // June 26 2026
-    return addWeeks(base, weekOffset);
-  }, [weekOffset]);
+  const baseDate = useMemo(() => addWeeks(new Date(), weekOffset), [weekOffset]);
 
   const weekStart = useMemo(
     () => startOfWeek(baseDate, { weekStartsOn: 1 }),
@@ -36,18 +33,21 @@ export function useRoster(departmentId: string): UseRosterReturn {
     [baseDate]
   );
 
-  // Fetch shifts for the current month when week changes
+  // Fetch shifts for the visible week whenever navigation moves it
   useEffect(() => {
-    const month = format(weekStart, 'yyyy-MM');
     setLoading(true);
-    rosterApi.list({ departmentId, month }).then((res) => {
+    rosterApi.list({
+      departmentId,
+      dateFrom: format(weekStart, 'yyyy-MM-dd'),
+      dateTo: format(weekEnd, 'yyyy-MM-dd'),
+    }).then((res) => {
       setShifts(res.data);
     }).catch(() => {
       // silent – keep existing shifts
     }).finally(() => {
       setLoading(false);
     });
-  }, [departmentId, weekStart]);
+  }, [departmentId, weekStart, weekEnd]);
 
   const getWeekShifts = useCallback(
     (date: Date): Shift[] => {
@@ -64,17 +64,18 @@ export function useRoster(departmentId: string): UseRosterReturn {
   const currentWeekShifts = useMemo<ShiftBlock[]>(() => {
     const weekShifts = getWeekShifts(baseDate);
     return weekShifts.map((shift) => {
-      // Build a minimal user stub from shift data for display purposes
-      // until a users-by-department API is available
+      // GET /roster already enriches each shift with userName/userInitials/userColor —
+      // build a display-only user stub from those instead of a separate users fetch.
+      const displayName = shift.userName ?? shift.userId;
       const user: User = {
         id: shift.userId,
-        name: shift.userId,
+        name: displayName,
         email: '',
         role: 'team_member',
         departmentId: shift.departmentId,
         status: 'active',
-        avatarInitials: shift.userId.slice(0, 2).toUpperCase(),
-        avatarColor: '#4F6EF7',
+        avatarInitials: shift.userInitials ?? displayName.slice(0, 2).toUpperCase(),
+        avatarColor: shift.userColor ?? '#4F6EF7',
         joinDate: '',
         lastLogin: null,
         isOnline: false,

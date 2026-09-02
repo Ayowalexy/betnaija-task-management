@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Plus, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Conversation } from '@/types/index';
-// TODO: Replace USERS mock with a users API call once available
-import { USERS } from '@/mocks/users';
+import type { DirectoryUser } from '@/api/users';
 import { useAuthStore } from '@/store/authStore';
 import { Avatar, Modal } from '@/components/ui/index';
 import styles from './ConversationList.module.css';
@@ -11,19 +10,34 @@ import styles from './ConversationList.module.css';
 interface ConversationListProps {
   conversations: Conversation[];
   activeId: string | null;
+  loading?: boolean;
+  userMap: Record<string, DirectoryUser>;
   onSelect: (id: string) => void;
+  onStartDM: (userId: string) => void;
 }
 
-function getOtherParticipant(conv: Conversation, currentUserId: string) {
-  const otherId = conv.participantIds.find((id) => id !== currentUserId);
-  return USERS.find((u) => u.id === otherId);
+// Always returns a displayable stub, even if the other participant is missing from the
+// directory (e.g. suspended) — a conversation should never silently disappear from the list
+// just because we can't resolve a name for the other side.
+function getOtherParticipant(conv: Conversation, currentUserId: string, userMap: Record<string, DirectoryUser>): DirectoryUser {
+  const otherId = conv.participantIds.find((id) => id !== currentUserId) ?? '';
+  return (
+    userMap[otherId] ?? {
+      id: otherId,
+      name: otherId ? `User ${otherId.slice(0, 6)}` : 'Unknown user',
+      email: '',
+      avatarInitials: otherId.slice(0, 2).toUpperCase() || '?',
+      avatarColor: '#4F6EF7',
+      isOnline: false,
+    }
+  );
 }
 
 function getUnreadCount(conv: Conversation, currentUserId: string): number {
-  return conv.messages.filter((m) => !m.readBy.includes(currentUserId)).length;
+  return conv.messages.filter((m) => m.senderId !== currentUserId && !m.readBy.includes(currentUserId)).length;
 }
 
-export function ConversationList({ conversations, activeId, onSelect }: ConversationListProps) {
+export function ConversationList({ conversations, activeId, loading, userMap, onSelect, onStartDM }: ConversationListProps) {
   const currentUser = useAuthStore((s) => s.currentUser);
   const [search, setSearch] = useState('');
   const [newMsgOpen, setNewMsgOpen] = useState(false);
@@ -32,7 +46,7 @@ export function ConversationList({ conversations, activeId, onSelect }: Conversa
 
   const filtered = conversations.filter((conv) => {
     if (conv.type === 'dm') {
-      const other = getOtherParticipant(conv, currentUser.id);
+      const other = getOtherParticipant(conv, currentUser.id, userMap);
       return other?.name.toLowerCase().includes(search.toLowerCase()) ?? false;
     }
     return (conv.name ?? '').toLowerCase().includes(search.toLowerCase());
@@ -48,11 +62,13 @@ export function ConversationList({ conversations, activeId, onSelect }: Conversa
     );
     if (existing) {
       onSelect(existing.id);
+    } else {
+      onStartDM(userId);
     }
     setNewMsgOpen(false);
   }
 
-  const otherUsers = USERS.filter((u) => u.id !== currentUser.id);
+  const otherUsers = Object.values(userMap).filter((u) => u.id !== currentUser.id);
 
   return (
     <div className={styles.panel}>
@@ -74,7 +90,8 @@ export function ConversationList({ conversations, activeId, onSelect }: Conversa
       </div>
 
       <div className={styles.list}>
-        {sortedConvs.length === 0 && (
+        {loading && <p className={styles.emptySearch}>Loading conversations…</p>}
+        {!loading && sortedConvs.length === 0 && (
           <p className={styles.emptySearch}>No conversations found</p>
         )}
         {sortedConvs.map((conv) => {
@@ -85,8 +102,7 @@ export function ConversationList({ conversations, activeId, onSelect }: Conversa
           const timeAgo = formatDistanceToNow(new Date(conv.lastMessageAt), { addSuffix: true });
 
           if (conv.type === 'dm') {
-            const other = getOtherParticipant(conv, currentUser.id);
-            if (!other) return null;
+            const other = getOtherParticipant(conv, currentUser.id, userMap);
             return (
               <div
                 key={conv.id}
@@ -123,7 +139,7 @@ export function ConversationList({ conversations, activeId, onSelect }: Conversa
               <div className={styles.groupIcon}><Users size={16} /></div>
               <div className={styles.itemBody}>
                 <div className={styles.itemTopRow}>
-                  <span className={styles.itemName}>{conv.name}</span>
+                  <span className={styles.itemName}>{conv.name || 'Untitled conversation'}</span>
                   <span className={styles.itemTime}>{timeAgo}</span>
                 </div>
                 <div className={styles.itemMeta}>

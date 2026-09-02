@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Search, UserPlus, MoreVertical, Mail, Building2, Calendar, Clock } from 'lucide-react';
 import { PageWrapper } from '@/components/layout/PageWrapper.js';
@@ -59,6 +60,11 @@ function UserDetailModal({ user, onClose, getDeptName }: UserDetailModalProps): 
   );
 }
 
+interface ConfirmTarget {
+  kind: 'suspend' | 'reset';
+  id: string;
+}
+
 export function UsersPage(): ReactElement {
   const addToast = useUIStore((s) => s.addToast);
   const addModal = useModal();
@@ -66,17 +72,29 @@ export function UsersPage(): ReactElement {
   const isAdmin = currentUser?.role === 'root_admin';
   const isDeptHead = currentUser?.role === 'dept_head';
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('search') ?? '';
+  const deptFilter = searchParams.get('dept') ?? '';
+  const roleFilter = searchParams.get('role') ?? '';
+  const statusFilter = searchParams.get('status') ?? '';
+  const page = Number(searchParams.get('page') ?? '1') || 1;
+
+  function updateFilters(patch: Partial<{ search: string; dept: string; role: string; status: string }>): void {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value) next.set(key, value); else next.delete(key);
+      }
+      next.delete('page');
+      return next;
+    });
+  }
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [departments, setDepartments] = useState<Department[]>([]);
 
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [suspendUserId, setSuspendUserId] = useState<string | null>(null);
-  const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [detailUser, setDetailUser] = useState<User | null>(null);
 
   const PAGE_LIMIT = 10;
@@ -107,11 +125,6 @@ export function UsersPage(): ReactElement {
     void fetchUsers();
   }, [fetchUsers]);
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [search, deptFilter, roleFilter, statusFilter]);
-
   useEffect(() => {
     void departmentsApi.list({ limit: 200 }).then((res) => setDepartments(res.data));
   }, []);
@@ -137,7 +150,7 @@ export function UsersPage(): ReactElement {
     { value: 'suspended', label: 'Suspended' },
   ];
 
-  const suspendTarget = users.find((u) => u.id === suspendUserId);
+  const suspendTarget = confirmTarget?.kind === 'suspend' ? users.find((u) => u.id === confirmTarget.id) : undefined;
 
   async function handleSuspend(): Promise<void> {
     if (!suspendTarget) return;
@@ -145,7 +158,7 @@ export function UsersPage(): ReactElement {
       const newStatus = suspendTarget.status === 'active' ? 'suspended' : 'active';
       await usersApi.update(suspendTarget.id, { status: newStatus });
       addToast({ type: 'success', message: `User ${suspendTarget.status === 'active' ? 'suspended' : 'activated'}` });
-      setSuspendUserId(null);
+      setConfirmTarget(null);
       void fetchUsers();
     } catch (err) {
       addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update user status' });
@@ -153,11 +166,11 @@ export function UsersPage(): ReactElement {
   }
 
   async function handleResetPassword(): Promise<void> {
-    if (!resetUserId) return;
+    if (confirmTarget?.kind !== 'reset') return;
     try {
-      await usersApi.resetPassword(resetUserId, crypto.randomUUID().slice(0, 12));
+      await usersApi.resetPassword(confirmTarget.id, crypto.randomUUID().slice(0, 12));
       addToast({ type: 'success', message: 'Password reset email sent' });
-      setResetUserId(null);
+      setConfirmTarget(null);
     } catch (err) {
       addToast({ type: 'error', message: err instanceof Error ? err.message : 'Failed to reset password' });
     }
@@ -194,8 +207,8 @@ export function UsersPage(): ReactElement {
           items={[
             { label: 'View Profile', onClick: () => setDetailUser(u) },
             { label: 'Edit Role', onClick: () => {}, dividerAfter: true },
-            { label: u.status === 'active' ? 'Suspend User' : 'Activate User', onClick: () => setSuspendUserId(u.id) },
-            { label: 'Reset Password', onClick: () => setResetUserId(u.id), dividerAfter: true },
+            { label: u.status === 'active' ? 'Suspend User' : 'Activate User', onClick: () => setConfirmTarget({ kind: 'suspend', id: u.id }) },
+            { label: 'Reset Password', onClick: () => setConfirmTarget({ kind: 'reset', id: u.id }), dividerAfter: true },
           ]}
         />
       ),
@@ -209,10 +222,10 @@ export function UsersPage(): ReactElement {
       actions={isAdmin ? <Button leftIcon={<UserPlus size={16} />} onClick={addModal.open}>Add User</Button> : undefined}
     >
       <div className={styles.toolbar}>
-        <Input placeholder="Search by name or email…" leftIcon={<Search size={15} />} value={search} onChange={(e) => setSearch(e.target.value)} wrapperClassName={styles.searchWrap} />
-        {isAdmin && <Select options={deptOptions} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} wrapperClassName={styles.filterSelect} />}
-        <Select options={roleOptions} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} wrapperClassName={styles.filterSelect} />
-        <Select options={statusOptions} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} wrapperClassName={styles.filterSelect} />
+        <Input placeholder="Search by name or email…" leftIcon={<Search size={15} />} value={search} onChange={(e) => updateFilters({ search: e.target.value })} wrapperClassName={styles.searchWrap} />
+        {isAdmin && <Select options={deptOptions} value={deptFilter} onChange={(e) => updateFilters({ dept: e.target.value })} wrapperClassName={styles.filterSelect} />}
+        <Select options={roleOptions} value={roleFilter} onChange={(e) => updateFilters({ role: e.target.value })} wrapperClassName={styles.filterSelect} />
+        <Select options={statusOptions} value={statusFilter} onChange={(e) => updateFilters({ status: e.target.value })} wrapperClassName={styles.filterSelect} />
       </div>
 
       <DataTable<User>
@@ -231,21 +244,30 @@ export function UsersPage(): ReactElement {
       <AddUserModal isOpen={addModal.isOpen} onClose={addModal.close} onSuccess={() => void fetchUsers()} />
 
       <ConfirmDialog
-        isOpen={!!suspendUserId}
-        onClose={() => setSuspendUserId(null)}
-        onConfirm={() => void handleSuspend()}
-        title={suspendTarget?.status === 'active' ? 'Suspend User' : 'Activate User'}
-        description={suspendTarget?.status === 'active' ? `Suspend ${suspendTarget?.name}? They will lose access immediately.` : `Reactivate ${suspendTarget?.name}? They will regain access.`}
-        confirmLabel={suspendTarget?.status === 'active' ? 'Suspend' : 'Activate'}
-        danger={suspendTarget?.status === 'active'}
-      />
-      <ConfirmDialog
-        isOpen={!!resetUserId}
-        onClose={() => setResetUserId(null)}
-        onConfirm={() => void handleResetPassword()}
-        title="Reset Password"
-        description="Send a password reset email to this user?"
-        confirmLabel="Send Reset Email"
+        isOpen={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          if (confirmTarget?.kind === 'suspend') void handleSuspend();
+          if (confirmTarget?.kind === 'reset') void handleResetPassword();
+        }}
+        title={
+          confirmTarget?.kind === 'reset'
+            ? 'Reset Password'
+            : suspendTarget?.status === 'active' ? 'Suspend User' : 'Activate User'
+        }
+        description={
+          confirmTarget?.kind === 'reset'
+            ? 'Send a password reset email to this user?'
+            : suspendTarget?.status === 'active'
+              ? `Suspend ${suspendTarget?.name}? They will lose access immediately.`
+              : `Reactivate ${suspendTarget?.name}? They will regain access.`
+        }
+        confirmLabel={
+          confirmTarget?.kind === 'reset'
+            ? 'Send Reset Email'
+            : suspendTarget?.status === 'active' ? 'Suspend' : 'Activate'
+        }
+        danger={confirmTarget?.kind === 'suspend' && suspendTarget?.status === 'active'}
       />
     </PageWrapper>
   );

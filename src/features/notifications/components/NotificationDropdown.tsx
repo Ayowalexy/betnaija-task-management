@@ -43,6 +43,8 @@ export function NotificationDropdown({ isOpen, onClose }: NotificationDropdownPr
     }
     if (notif.ticketId) {
       navigate(`/tickets/${notif.ticketId}`);
+    } else if (notif.utilityRequestId) {
+      navigate(`/utility-requests/${notif.utilityRequestId}`);
     }
     onClose();
   }

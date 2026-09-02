@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { MessageSquare, Users, Wifi, WifiOff } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
-import { chatApi } from '@/api/chat';
-import type { ChatToken } from '@/api/chat';
+import { useChatStore } from '@/store/chatStore';
+import { usersApi } from '@/api/users';
+import type { DirectoryUser } from '@/api/users';
+import type { User } from '@/types/index';
 import { Avatar } from '@/components/ui/index';
 import { useChat } from '../hooks/useChat';
 import { ConversationList } from './ConversationList';
@@ -21,20 +23,20 @@ function formatDateSeparator(dateStr: string): string {
 
 export function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
+  const navigate = useNavigate();
   const currentUser = useAuthStore((s) => s.currentUser);
-  const { conversations, activeConversation, setActiveConversation, sendMessage } = useChat();
+  const connected = useChatStore((s) => s.connected);
+  const { conversations, activeConversation, loading, typingNames, setActiveConversation, sendMessage, handleTyping, startDirectMessage } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Stream.io connection state
-  const [chatToken, setChatToken] = useState<ChatToken | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  // Deliberately the unscoped chat directory, not usersApi.list() — the latter is
+  // department-scoped for dept_head callers, which would silently hide any cross-department
+  // conversation (getOtherParticipant returning undefined) since chat needs to resolve anyone.
+  const [userMap, setUserMap] = useState<Record<string, DirectoryUser>>({});
 
   useEffect(() => {
-    chatApi.getToken().then((token) => {
-      setChatToken(token);
-      setConnectionStatus('connected');
-    }).catch(() => {
-      setConnectionStatus('error');
+    void usersApi.listDirectory().then((users) => {
+      setUserMap(Object.fromEntries(users.map((u) => [u.id, u])));
     });
   }, []);
 
@@ -48,11 +50,17 @@ export function ChatPage() {
 
   if (!currentUser) return null;
 
+  async function handleStartDM(userId: string) {
+    const id = await startDirectMessage(userId);
+    setActiveConversation(id);
+    navigate(`/chat/${id}`);
+  }
+
   function getConvName() {
     if (!activeConversation) return '';
     if (activeConversation.type === 'group') return activeConversation.name ?? 'Group';
     const otherId = activeConversation.participantIds.find((id) => id !== currentUser!.id);
-    return otherId ?? 'Unknown';
+    return (otherId && userMap[otherId]?.name) ?? otherId ?? 'Unknown';
   }
 
   function getConvSub() {
@@ -77,62 +85,62 @@ export function ChatPage() {
   const dmOtherId = activeConversation?.type === 'dm'
     ? activeConversation.participantIds.find((id) => id !== currentUser.id)
     : null;
+  const dmOtherUser = dmOtherId ? userMap[dmOtherId] : null;
 
-  // Build minimal User stub for display (no users-by-id API available for chat)
-  function makeUserStub(id: string) {
+  function userStub(id: string): User {
+    const known = userMap[id];
     return {
       id,
-      name: id,
-      email: '',
-      role: 'team_member' as const,
+      name: known?.name ?? id,
+      email: known?.email ?? '',
+      role: 'team_member',
       departmentId: null,
-      status: 'active' as const,
-      avatarInitials: id.slice(0, 2).toUpperCase(),
-      avatarColor: '#4F6EF7',
+      status: 'active',
+      avatarInitials: known?.avatarInitials ?? id.slice(0, 2).toUpperCase(),
+      avatarColor: known?.avatarColor ?? '#4F6EF7',
       joinDate: '',
       lastLogin: null,
-      isOnline: false,
+      isOnline: known?.isOnline ?? false,
       isFirstLogin: false,
       notificationPrefs: { email: true, teams: false, whatsapp: false },
     };
   }
-
-  const dmOtherStub = dmOtherId ? makeUserStub(dmOtherId) : null;
 
   return (
     <div className={styles.page}>
       <ConversationList
         conversations={conversations}
         activeId={activeConversation?.id ?? null}
-        onSelect={setActiveConversation}
+        loading={loading}
+        userMap={userMap}
+        onSelect={(id) => { setActiveConversation(id); navigate(`/chat/${id}`); }}
+        onStartDM={handleStartDM}
       />
 
       <div className={styles.main}>
-        {/* Stream.io connection status banner */}
+        {/* Stream connection status banner */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: 6,
           padding: '4px 12px',
           fontSize: 'var(--font-size-xs)',
-          color: connectionStatus === 'connected' ? 'var(--color-success)' : connectionStatus === 'error' ? 'var(--color-error)' : 'var(--color-text-secondary)',
+          color: connected ? 'var(--color-success)' : 'var(--color-text-secondary)',
           background: 'var(--color-bg-subtle)',
           borderBottom: '1px solid var(--color-border-default)',
         }}>
-          {connectionStatus === 'connected' ? (
-            <><Wifi size={12} /> Chat powered by Stream.io — connected{chatToken ? ` (key: ${chatToken.apiKey.slice(0, 8)}…)` : ''}</>
-          ) : connectionStatus === 'error' ? (
-            <><WifiOff size={12} /> Stream.io connection unavailable</>
+          {connected ? (
+            <><Wifi size={12} /> Connected</>
           ) : (
-            <><Wifi size={12} /> Connecting to Stream.io…</>
+            <><WifiOff size={12} /> Connecting to chat…</>
           )}
         </div>
 
         {activeConversation ? (
           <>
             <div className={styles.topBar}>
-              {activeConversation.type === 'dm' && dmOtherStub ? (
-                <Avatar initials={dmOtherStub.avatarInitials} color={dmOtherStub.avatarColor} size="sm" name={dmOtherStub.name} />
+              {activeConversation.type === 'dm' && dmOtherUser ? (
+                <Avatar initials={dmOtherUser.avatarInitials} color={dmOtherUser.avatarColor} size="sm" name={dmOtherUser.name} online={dmOtherUser.isOnline} />
               ) : (
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Users size={18} color="var(--color-text-secondary)" />
@@ -151,7 +159,7 @@ export function ChatPage() {
                     <span className={styles.dateSeparatorText}>{formatDateSeparator(date)}</span>
                   </div>
                   {msgs.map((msg, idx) => {
-                    const senderStub = makeUserStub(msg.senderId);
+                    const sender = userStub(msg.senderId);
                     const isOwn = msg.senderId === currentUser.id;
                     const prevMsg = idx > 0 ? msgs[idx - 1] : null;
                     const showAvatar = !isOwn && prevMsg?.senderId !== msg.senderId;
@@ -160,7 +168,7 @@ export function ChatPage() {
                         key={msg.id}
                         message={msg}
                         isOwn={isOwn}
-                        sender={senderStub}
+                        sender={sender}
                         showAvatar={showAvatar}
                       />
                     );
@@ -170,7 +178,12 @@ export function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <MessageInput onSend={sendMessage} />
+            {typingNames.length > 0 && (
+              <p className={styles.typingIndicator}>
+                {typingNames.join(', ')} {typingNames.length === 1 ? 'is' : 'are'} typing…
+              </p>
+            )}
+            <MessageInput onSend={sendMessage} onTyping={handleTyping} />
           </>
         ) : (
           <div className={styles.emptyWrap}>

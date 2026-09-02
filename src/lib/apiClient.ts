@@ -129,6 +129,29 @@ apiClient.interceptors.response.use(
   },
 );
 
+// Surface the backend's actual error message on err.message, instead of axios's generic
+// "Request failed with status code 4xx/5xx" — every catch block that does
+// `err instanceof Error ? err.message : ...` picks this up automatically.
+// Mutates the AxiosError in place (rather than replacing it) so callers that still read
+// err.response directly (e.g. LoginPage's ACCOUNT_SETUP_REQUIRED check) keep working.
+apiClient.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (axios.isAxiosError(err)) {
+      const data = err.response?.data as { message?: string | string[] } | undefined;
+      const backendMessage = Array.isArray(data?.message)
+        ? data.message.join(', ')
+        : data?.message;
+      if (backendMessage) {
+        err.message = backendMessage;
+      } else if (!err.response) {
+        err.message = 'Network error — please check your connection and try again.';
+      }
+    }
+    return Promise.reject(err);
+  },
+);
+
 // ── Typed request helpers (auto-unwrap NestJS envelope) ───────────────────
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
